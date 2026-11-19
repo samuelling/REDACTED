@@ -22,6 +22,15 @@ MODELS = [
     # the rooms themselves
     "Chandelier_01", "Chandelier_03",
     "ornate_mirror_01", "marble_bust_01", "ClassicConsole_01", "dining_chair_02",
+    "Sofa_01", "ArmChair_01", "metal_tool_chest", "throw_pillows_01", "vintage_grandfather_clock_01",
+    "mantel_clock_01", "Television_01", "television_02", "security_camera_02",
+    # fittings for the fictionalized rooms
+    "steel_frame_shelves_01", "wooden_display_shelves_01", "electric_stove", "metal_office_desk",
+    "cement_bag", "planter_box_01",
+    # furnishing the rooms by type
+    "GothicBed_01", "ClassicNightstand_01", "sofa_02", "coffee_table_round_01", "desk_lamp_arm_01",
+    "steel_frame_shelves_02", "wooden_crate_01", "plastic_crate_01", "covered_car", "hand_truck", "tool_cart",
+    "vintage_microwave", "drawer_cabinet", "binder_notebook", "portable_generator", "Shelf_01",
 ]
 
 

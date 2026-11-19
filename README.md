@@ -1,64 +1,78 @@
 # REDACTED
 
-A figure-ground piece built from the DOJ Epstein files. The FBI's search photographs
-are moved, in shooting order, onto the public tour of a gilded White House. Every
-mundane thing the photographs caught becomes an object in the rooms; every
-photograph with no legible text hangs as an empty gilded frame. The people are the
-one thing kept out: they stand in the rooms as matte black human shapes that take
-no light, one for every 1,000 redactions in the release.
-
-The voids stay voids. The piece never tries to fill in who was there.
+A figure-ground piece built from the DOJ Epstein files. The release is so heavily
+redacted that mostly ground is left: rooms, objects, paperwork. This gallery is a
+comprehensive collection of that ground, arranged in a gilded, enlarged White
+House. The people appear only as matte black figures that take no light.
 
 Open `site/index.html` through any static server (or GitHub Pages pointed at
-`site/`). Drag to look around, arrows or the buttons to move between rooms.
+`site/`). Visitors confirm they are 18 or over, start on the North Lawn, and walk
+in through the North Portico. WASD and mouse on desktop, twin thumbs on a phone,
+and a guided tour.
 
-## How the rooms are filled
+## How the gallery is arranged
 
-| What you see | Where it comes from |
+Everything is placed by what it is, not by shooting order. Each object still
+carries its photograph's EFTA number, the word that matched, and its position in
+the FBI's shooting order (click it).
+
+| Room | Holds |
 | --- | --- |
-| The tour | 13 rooms in public-tour order: Ground Floor Corridor, Library, Vermeil, China, Diplomatic Reception, East, Green, Blue, Red, State Dining, Cross Hall, Entrance Hall, Oval Office |
-| Which photographs belong to a room | Data Set 1's 3,097 photographs split, in Bates order, into 13 equal stretches |
-| Objects | Each photograph's OCR text matched against a lexicon of everyday objects (`scripts/build_inventory.py`); one object per mention |
-| Empty frames | One per photograph whose OCR text is under 6 characters |
-| Placard code | The FBI room placards that fall in that stretch |
-| Black figures | Total redaction fragments in the release ÷ 1,000 (191), shared out by floor area. Counts only: no recovered text or names are read |
+| East Wing Ballroom (a Hall of Mirrors where the East Wing stood) | Storage shelving with the banker's and shipping boxes, fuel drums on pallets, the utility vehicles in rows, garden supplies |
+| Oval Office | Offices: desks with the computers, phones and papers, printers, Keep Calm posters, the evidence tables |
+| Situation Room | Network racks and a wall of monitors |
+| East Room | Sitting rooms: sofas, televisions, DVDs, projectors, the pianos |
+| Green Room | Kitchens and pantries |
+| Blue Room | The gym |
+| Red Room | Bedrooms |
+| State Dining Room | Mechanical rooms: the pipe manifold, workbenches and power tools, ladders |
+| Library, Vermeil, China, Diplomatic Reception and Map Rooms, the Vault | Library, bathrooms, laundry and linens, closets, massage rooms, safes |
+
+Photographs hang in the room their scene description matches. Halls and stairs
+take the corridor photographs.
+
+## What is shown and what is withheld
+
+- **Objects** come from OCR text matched against a lexicon of everyday things
+  (`scripts/build_inventory.py`).
+- **Photographs**: each wordless photograph is classified from the dataset's scene
+  description. Any that describe a person hang as black frames tagged *Withheld:
+  shows a person* (the description is shown on click unless it mentions youth,
+  undress or beds). Any that describe nudity hang black, tagged *Withheld:
+  nudity*, and are never described. Only screened photographs are ever fetched,
+  and `scripts/build_photos.py` runs NudeNet and OpenCV's people detector over
+  them before use; anything flagged stays black.
+- **Black figures**: one per 1,000 redaction fragments in the release (191).
+  Counts only; nothing beneath a redaction is read.
+- **Evidence**: the 112 items in the FBI evidence-recovery log appear as sealed,
+  tagged bags in the room where they were found. Item types only; adult items,
+  photographs and personal papers are sealed in black bags and not described.
+- **Computers**: every desktop computer opens a browser history of all 26,318 web
+  addresses in the 689,073 emails of the release (`scripts/build_urls.py`). Query
+  strings are cut, addresses are text and never links, and 1,458 addresses whose
+  words could refer to minors are withheld and labelled as such.
+- **Figure Mode** drops the ground: only the redacted people and the seized
+  evidence remain.
 
 ## Pipeline
 
 ```
-pip install duckdb
+pip install duckdb pymupdf nudenet opencv-python-headless
 npm i -g @gltf-transform/cli
-python scripts/build_rooms.py documents-00000.parquet              # -> data/rooms.json (git-ignored)
-python scripts/build_inventory.py recovered_redactions-00000.parquet  # -> site/inventory.json
-python scripts/fetch_models.py /tmp/polyhaven && python scripts/glb_to_json.py  # -> site/models/*.json
+python scripts/build_rooms.py documents-00000.parquet
+python scripts/build_inventory.py recovered_redactions-00000.parquet documents-00000.parquet
+python scripts/build_gallery.py documents-00000.parquet     # -> site/gallery.json
+python scripts/build_urls.py                                 # -> site/computers/urls.json
+python scripts/fetch_models.py /tmp/polyhaven && python scripts/glb_to_json.py
+python scripts/fetch_surfaces.py
+python scripts/build_photos.py PDF_DIR                       # screened photographs only
 ```
-
-Only object categories and counts reach `site/`. No OCR text, names or addresses
-are published.
-
-## Notes from the data
-
-- Data Set 1 is FBI search photography, starting at the Manhattan townhouse
-  (the first file is the photographer's log for 9 East 71st St).
-- 61 room placards, codes A–Z and AA–NN, in the first ~1,370 files, in at least
-  three passes rather than one walk through the house. The last ~1,790 files have
-  no placards and lean toward Little St. James.
-- Only 690 of 3,097 photographs carry legible text.
-- Data Set 1 itself is barely redacted (7 pages), so the figures draw on the
-  whole release.
 
 ## Credits
 
 Data: [kabasshouse/epstein-data](https://huggingface.co/datasets/kabasshouse/epstein-data)
-(CC-BY-4.0), OCR of the DOJ's Epstein Files Transparency Act release.
+(CC-BY-4.0), OCR and scene descriptions of the DOJ's Epstein Files Transparency Act release.
 
-Public domain (CC0) models from [Poly Haven](https://polyhaven.com), resized and
-recompressed: `cardboard_box_01`, `korean_fire_extinguisher_01`,
-`lightbulb_01`, `Drill_01`, `ladder_sectioned_01`, `compost_bags`,
-`book_encyclopedia_set_01`, `stationery_supplies`, `Barrel_01`, `metal_jerrycan`,
-`filmstrip_projector_8mm`, `potted_plant_01`, `potted_plant_04`,
-`multi_cleaner_5_litre`, `Chandelier_01`, `Chandelier_03`,
-`ornate_mirror_01`, `marble_bust_01`, `ClassicConsole_01`, `dining_chair_02`.
-
-Everything else (rooms, frames, figures, utility vehicles, network racks,
-printers, the piano) is built in code. three.js 0.160 from jsDelivr.
+Models, surfaces and the ballroom HDRI: [Poly Haven](https://polyhaven.com) (CC0),
+resized and recompressed; the model list is in `scripts/fetch_models.py`. Everything
+else is built in code. three.js 0.160 from jsDelivr.

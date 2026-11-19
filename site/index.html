@@ -5,12 +5,13 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+SC:wght@500;700&family=IBM+Plex+Mono:wght@400;600&display=swap">
 <style>
-  /* Layout: full-bleed WebGL room; an FBI evidence placard pinned bottom-left; a black redaction bar wipes between rooms. Single deliberate look. */
+  /* Layout: a walkable WebGL house; an FBI evidence placard names the room; clicking anything opens its evidence tag. Single deliberate look. */
   :root {
-    --ink: #0b0a08;          /* redaction black, the night behind the rooms */
-    --placard: #f4f1e8;      /* the FBI's white placard card */
+    --ink: #0b0a08;
+    --placard: #f4f1e8;
     --placard-ink: #16140f;
-    --gilt: #d2a948;         /* gold leaf */
+    --rule: #cfc9ba;
+    --gilt: #d2a948;
     --gilt-dim: #8f7330;
     --muted: #6d665a;
     --display: "Cormorant SC", "Cormorant", Georgia, "Times New Roman", serif;
@@ -19,128 +20,211 @@
   }
   [hidden] { display: none !important; }
   html, body { height: 100%; margin: 0; }
-  body { background: var(--ink); color: var(--placard); overflow: hidden; font-family: var(--mono); }
-  #gl { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; }
-  #gl:active { cursor: grabbing; }
-
-  .bar { background: var(--ink); color: transparent; padding: 0 .08em; border-radius: 1px; user-select: none; }
+  body { background: var(--ink); color: var(--placard); overflow: hidden; font-family: var(--mono); -webkit-user-select: none; user-select: none; }
+  #gl { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+  .bar { background: var(--ink); color: transparent; padding: 0 .08em; border-radius: 1px; }
 
   /* Intro */
   #intro {
     position: fixed; inset: 0; z-index: 30; display: grid; place-items: center;
-    background: color-mix(in srgb, var(--ink) 82%, transparent);
+    background: color-mix(in srgb, var(--ink) 84%, transparent);
     padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
     padding-block: max(24px, env(safe-area-inset-top, 0px)) max(24px, env(safe-area-inset-bottom, 0px));
-    overflow-y: auto;
+    overflow-y: auto; -webkit-user-select: text; user-select: text;
   }
-  #intro .inner { max-width: 36rem; display: grid; gap: 1.25rem; }
-  #intro h1 {
-    margin: 0; font-family: var(--display); font-weight: 700; color: var(--gilt);
-    font-size: clamp(2.6rem, 11vw, 5.2rem); letter-spacing: .06em; line-height: .95; text-wrap: balance;
-  }
-  #intro h1 .bar { color: transparent; background: var(--placard); box-shadow: 0 0 0 .02em var(--placard); }
+  #intro .inner { max-width: 36rem; display: grid; gap: 1.15rem; }
+  #intro h1 { margin: 0; font-family: var(--display); font-weight: 700; color: var(--gilt); font-size: clamp(2.6rem, 11vw, 5.2rem); letter-spacing: .06em; line-height: .95; }
+  #intro h1 .bar { background: var(--placard); }
   #intro p { margin: 0; font-size: .86rem; line-height: 1.65; color: #d9d3c4; max-width: 62ch; }
-  #intro .meta { font-size: .72rem; color: #a49c8a; letter-spacing: .02em; }
+  #intro .meta { font-size: .72rem; color: #a49c8a; }
   #intro .meta a { color: var(--gilt); }
-  #begin {
-    justify-self: start; font: 600 .82rem/1 var(--mono); letter-spacing: .14em; text-transform: uppercase;
-    color: var(--ink); background: var(--gilt); border: 0; padding: .95rem 1.35rem; border-radius: 2px; cursor: pointer;
-  }
-  #begin:hover { background: #e3bd5d; }
-  #begin:focus-visible, .ctl:focus-visible { outline: 2px solid var(--placard); outline-offset: 3px; }
-  #begin[disabled] { opacity: .5; cursor: progress; }
+  #intro .keys { font-size: .72rem; color: #cfc6b2; line-height: 1.7; }
+  #intro .keys kbd { font: 600 .68rem var(--mono); border: 1px solid var(--gilt-dim); border-radius: 2px; padding: 0 .3em; color: var(--placard); }
+  .row-btns { display: flex; gap: 10px; flex-wrap: wrap; }
+  .btn { font: 600 .82rem/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; border-radius: 2px; padding: .95rem 1.35rem; cursor: pointer; }
+  .btn.primary { color: var(--ink); background: var(--gilt); border: 0; }
+  .btn.primary:hover { background: #e3bd5d; }
+  .btn.ghost { color: var(--placard); background: transparent; border: 1px solid var(--gilt-dim); }
+  .btn.ghost:hover { border-color: var(--gilt); color: var(--gilt); }
+  .btn[disabled] { opacity: .5; cursor: progress; }
+  .btn:focus-visible, .ctl:focus-visible, #info a:focus-visible, #info button:focus-visible { outline: 2px solid var(--placard); outline-offset: 3px; }
 
-  /* Evidence placard */
+  /* Age gate */
+  #gate { position: fixed; inset: 0; z-index: 35; display: grid; place-items: center; background: var(--ink);
+    padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: max(24px, env(safe-area-inset-top, 0px)) max(24px, env(safe-area-inset-bottom, 0px)); overflow-y: auto; -webkit-user-select: text; user-select: text; }
+  #gate .inner { max-width: 30rem; display: grid; gap: 1.1rem; }
+  #gate h1 { margin: 0; font-family: var(--display); font-weight: 700; color: var(--gilt); font-size: clamp(2.2rem, 9vw, 3.6rem); letter-spacing: .06em; line-height: .95; }
+  #gate h1 .bar { background: var(--placard); }
+  #gate p { margin: 0; font-size: .84rem; line-height: 1.6; color: #d9d3c4; }
+  #gate .err { color: #f0b8a8; }
+  .dob { display: flex; gap: 10px; flex-wrap: wrap; }
+  .dob label { display: grid; gap: .3rem; font-size: .6rem; letter-spacing: .12em; text-transform: uppercase; color: #a49c8a; }
+  .dob select, .dob input { font: 400 1rem var(--mono); color: var(--placard); background: #17150f; border: 1px solid var(--gilt-dim); border-radius: 2px; height: 44px; padding: 0 .6rem; }
+  .dob input#dob-d { width: 4.5rem; } .dob input#dob-y { width: 6.5rem; } .dob select { min-width: 9rem; }
+  .dob select:focus-visible, .dob input:focus-visible { outline: 2px solid var(--placard); outline-offset: 2px; }
+
+  /* Room placard */
   #placard {
     position: fixed; z-index: 10;
-    left: max(14px, env(safe-area-inset-left, 0px)); bottom: calc(max(14px, env(safe-area-inset-bottom, 0px)) + 58px);
-    width: min(25rem, calc(100% - 28px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)));
-    background: var(--placard); color: var(--placard-ink); border-radius: 2px;
-    box-shadow: 0 10px 40px rgba(0,0,0,.45); font-size: .7rem; line-height: 1.45;
-    display: grid; grid-template-columns: auto 1fr; transition: opacity .35s ease;
+    left: max(14px, env(safe-area-inset-left, 0px)); top: max(14px, env(safe-area-inset-top, 0px));
+    width: min(25rem, calc(100% - 28px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px) - 120px));
+    background: var(--placard); color: var(--placard-ink); border-radius: 2px; box-shadow: 0 10px 40px rgba(0,0,0,.45);
+    font-size: .68rem; line-height: 1.45; display: grid; grid-template-columns: auto 1fr; cursor: pointer;
   }
-  #placard.fading { opacity: 0; }
-  #placard .code {
-    font-family: var(--display); font-weight: 700; font-size: 2.6rem; line-height: 1; padding: .55rem .7rem .4rem;
-    border-right: 1.5px solid var(--placard-ink); display: grid; place-items: center; min-width: 3.4rem; text-align: center;
-  }
+  #placard .code { font-family: var(--display); font-weight: 700; font-size: 2.2rem; line-height: 1; padding: .45rem .6rem .35rem; border-right: 1.5px solid var(--placard-ink); display: grid; place-items: center; min-width: 3rem; }
   #placard .body { min-width: 0; display: grid; }
-  #placard .row { display: grid; grid-template-columns: 6.6rem 1fr; border-bottom: 1px solid #cfc9ba; }
+  #placard .title { font-family: var(--display); font-weight: 700; font-size: 1.04rem; letter-spacing: .03em; padding: .35rem .55rem .2rem; }
+  #placard .sum { padding: 0 .55rem .35rem; color: var(--muted); font-size: .62rem; letter-spacing: .04em; }
+  #placard .rows { border-top: 1.5px solid var(--placard-ink); }
+  #placard .row { display: grid; grid-template-columns: 6.4rem 1fr; border-bottom: 1px solid var(--rule); }
   #placard .row:last-child { border-bottom: 0; }
-  #placard .k { padding: .28rem .5rem; font-size: .6rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); border-right: 1px solid #cfc9ba; }
-  #placard .v { padding: .28rem .55rem; min-width: 0; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
-  #placard .title { font-family: var(--display); font-weight: 700; font-size: 1.08rem; letter-spacing: .03em; padding: .4rem .55rem .25rem; border-bottom: 1.5px solid var(--placard-ink); }
-  #placard .x { display: inline-block; width: .85em; height: .85em; border: 1px solid var(--placard-ink); text-align: center; line-height: .8; margin-left: .3em; font-weight: 600; }
+  #placard .k { padding: .26rem .5rem; font-size: .58rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); border-right: 1px solid var(--rule); }
+  #placard .v { padding: .26rem .55rem; min-width: 0; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+  #placard.collapsed .rows { display: none; }
 
-  /* Controls */
-  #controls {
-    position: fixed; z-index: 10; display: flex; gap: 8px; align-items: center;
-    left: max(14px, env(safe-area-inset-left, 0px)); bottom: max(14px, env(safe-area-inset-bottom, 0px));
-  }
-  .ctl {
-    font: 600 .72rem/1 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--placard);
-    background: rgba(11,10,8,.72); border: 1px solid var(--gilt-dim); border-radius: 2px; height: 40px; min-width: 44px;
-    padding: 0 .85rem; cursor: pointer; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
-  }
+  /* Top-right controls */
+  #controls { position: fixed; z-index: 10; display: flex; gap: 8px; align-items: center; right: max(14px, env(safe-area-inset-right, 0px)); top: max(14px, env(safe-area-inset-top, 0px)); }
+  .ctl { font: 600 .7rem/1 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--placard); background: rgba(11,10,8,.72); border: 1px solid var(--gilt-dim); border-radius: 2px; height: 38px; min-width: 40px; padding: 0 .75rem; cursor: pointer; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
   .ctl:hover { border-color: var(--gilt); color: var(--gilt); }
-  #counter { font-size: .72rem; letter-spacing: .1em; color: #cfc6b2; padding: 0 .3rem; font-variant-numeric: tabular-nums; text-shadow: 0 1px 6px #000; }
-  #hint {
-    position: fixed; z-index: 10; right: max(14px, env(safe-area-inset-right, 0px)); top: max(14px, env(safe-area-inset-top, 0px));
-    font-size: .64rem; letter-spacing: .12em; text-transform: uppercase; color: #d8cfb9; text-shadow: 0 1px 6px #000; transition: opacity 1s;
-  }
+  #tourbar { position: fixed; z-index: 10; display: flex; gap: 8px; align-items: center; left: 50%; transform: translateX(-50%); bottom: max(14px, env(safe-area-inset-bottom, 0px)); }
+  #counter { font-size: .7rem; letter-spacing: .1em; color: #cfc6b2; padding: 0 .3rem; font-variant-numeric: tabular-nums; text-shadow: 0 1px 6px #000; }
 
-  /* Redaction wipe between rooms */
+  #hint { position: fixed; z-index: 10; left: 50%; transform: translateX(-50%); bottom: max(18px, env(safe-area-inset-bottom, 0px)); font-size: .64rem; letter-spacing: .12em; text-transform: uppercase; color: #e1d8c2; text-shadow: 0 1px 6px #000; transition: opacity 1.2s; text-align: center; max-width: calc(100% - 40px); }
+  #cross { position: fixed; z-index: 9; left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px 0 0 -3px; border-radius: 50%; background: rgba(244,241,232,.85); box-shadow: 0 0 0 1.5px rgba(0,0,0,.5); pointer-events: none; }
+  #cross.hot { width: 14px; height: 14px; margin: -7px 0 0 -7px; background: transparent; border: 2px solid var(--gilt); box-shadow: 0 0 0 1px rgba(0,0,0,.5); }
+
+  /* Evidence tag */
+  #info {
+    position: fixed; z-index: 15; right: max(14px, env(safe-area-inset-right, 0px)); bottom: max(14px, env(safe-area-inset-bottom, 0px));
+    width: min(22rem, calc(100% - 28px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)));
+    background: var(--placard); color: var(--placard-ink); border-radius: 2px; box-shadow: 0 12px 44px rgba(0,0,0,.5);
+    font-size: .72rem; line-height: 1.5; -webkit-user-select: text; user-select: text;
+  }
+  #info header { display: flex; align-items: start; gap: .5rem; padding: .55rem .7rem .4rem; border-bottom: 1.5px solid var(--placard-ink); }
+  #info h2 { margin: 0; flex: 1; font-family: var(--display); font-weight: 700; font-size: 1.15rem; line-height: 1.1; letter-spacing: .02em; text-wrap: balance; }
+  #info h2.black { background: var(--placard-ink); color: transparent; border-radius: 1px; }
+  #info .kind { font-size: .56rem; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); padding-top: .25rem; }
+  #info button.x { border: 1px solid var(--placard-ink); background: transparent; color: var(--placard-ink); width: 26px; height: 26px; border-radius: 2px; cursor: pointer; font: 600 .8rem var(--mono); flex: none; }
+  #info dl { margin: 0; display: grid; grid-template-columns: 6.6rem 1fr; }
+  #info dt, #info dd { margin: 0; padding: .3rem .6rem; border-bottom: 1px solid var(--rule); }
+  #info dt { font-size: .58rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); border-right: 1px solid var(--rule); }
+  #info dd { min-width: 0; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+  #info dl > :nth-last-child(-n+2) { border-bottom: 0; }
+  #info a { color: #7a5a12; text-decoration-thickness: 1px; }
+  #info .note { padding: .45rem .7rem .6rem; border-top: 1.5px solid var(--placard-ink); color: #3b372f; }
+
+  /* Computer: browser history of every address in the emails */
+  #pc { position: fixed; inset: 0; z-index: 25; display: grid; place-items: center; background: rgba(5,5,4,.55);
+    padding-left: max(12px, env(safe-area-inset-left, 0px)); padding-right: max(12px, env(safe-area-inset-right, 0px)); padding-block: max(12px, env(safe-area-inset-top, 0px)) max(12px, env(safe-area-inset-bottom, 0px)); }
+  #pc .win { width: min(56rem, 100%); height: min(42rem, 100%); display: grid; grid-template-rows: auto auto 1fr auto auto; background: #e9e7e1; color: #1b1a17; border-radius: 6px; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,.6); font-size: .74rem; -webkit-user-select: text; user-select: text; }
+  #pc .tbar { display: flex; align-items: center; gap: .6rem; padding: .45rem .6rem; background: linear-gradient(#f6f5f1, #d9d6ce); border-bottom: 1px solid #b6b2a8; font-weight: 600; }
+  #pc .tbar span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #pc .x { border: 1px solid #8f8b80; background: #fff; width: 26px; height: 26px; border-radius: 3px; cursor: pointer; font: 600 .78rem var(--mono); color: #1b1a17; }
+  #pc .tools { display: flex; gap: .6rem; align-items: center; padding: .5rem .6rem; border-bottom: 1px solid #cfcbc1; flex-wrap: wrap; }
+  #pc input { flex: 1 1 14rem; min-width: 0; font: 400 .8rem var(--mono); padding: .45rem .55rem; border: 1px solid #9a968b; border-radius: 3px; background: #fff; color: #1b1a17; }
+  #pc #pc-count { color: #5b574e; font-variant-numeric: tabular-nums; }
+  #pc ol { margin: 0; padding: 0; list-style: none; overflow-y: auto; background: #fff; }
+  #pc li { display: grid; grid-template-columns: 1fr auto auto; gap: .8rem; padding: .32rem .6rem; border-bottom: 1px solid #efede8; align-items: baseline; }
+  #pc li .u { min-width: 0; overflow-wrap: anywhere; }
+  #pc li .u.withheld { background: #1b1a17; color: #f4f1e8; padding: 0 .3rem; border-radius: 1px; justify-self: start; }
+  #pc li .n { color: #5b574e; font-variant-numeric: tabular-nums; }
+  #pc li .src { color: #7a5a12; font-size: .66rem; }
+  #pc .more { padding: .4rem .6rem; background: #fff; }
+  #pc .more button { font: 600 .7rem var(--mono); padding: .35rem .7rem; border: 1px solid #9a968b; background: #f6f5f1; color: #1b1a17; border-radius: 3px; cursor: pointer; }
+  #pc .foot { margin: 0; padding: .5rem .6rem; color: #4a463e; border-top: 1px solid #cfcbc1; font-size: .66rem; line-height: 1.5; }
+
+  /* Touch joystick */
+  #stick { position: fixed; z-index: 11; width: 116px; height: 116px; margin: -58px 0 0 -58px; border-radius: 50%; border: 1.5px solid rgba(244,241,232,.5); background: rgba(11,10,8,.25); pointer-events: none; }
+  #stick i { position: absolute; left: 50%; top: 50%; width: 46px; height: 46px; margin: -23px 0 0 -23px; border-radius: 50%; background: rgba(244,241,232,.55); }
+
   #wipe { position: fixed; inset: 0; z-index: 20; background: var(--ink); transform: scaleX(0); transform-origin: left center; pointer-events: none; transition: transform .42s cubic-bezier(.7,0,.3,1); }
   #wipe.on { transform: scaleX(1); }
   #wipe.right { transform-origin: right center; }
-
   #err { position: fixed; inset: auto 16px 16px; z-index: 40; background: var(--placard); color: var(--placard-ink); padding: .8rem 1rem; font-size: .78rem; border-radius: 2px; }
 
-  @media (max-width: 480px) {
-    #placard { font-size: .64rem; bottom: calc(max(10px, env(safe-area-inset-bottom, 0px)) + 54px); }
+  @media (max-width: 560px) {
+    #placard { font-size: .62rem; width: calc(100% - 28px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px) - 104px); }
+    #placard .code { display: none; }
     #placard { grid-template-columns: 1fr; }
-    #placard .code, #placard .row.sc { display: none; }
-    #placard .row .k { padding-block: .2rem; }
-    #placard .row .v { padding-block: .2rem; }
-    #placard .row { grid-template-columns: 5.4rem 1fr; }
-    #placard .title { font-size: .98rem; }
-    .ctl { height: 38px; padding: 0 .7rem; }
+    #placard .row { grid-template-columns: 5.2rem 1fr; }
+    .ctl { height: 36px; padding: 0 .6rem; }
+    #info { left: max(14px, env(safe-area-inset-left, 0px)); right: auto; width: calc(100% - 28px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)); }
   }
-  @media (prefers-reduced-motion: reduce) { #wipe { transition: none; } #placard { transition: none; } }
+  @media (prefers-reduced-motion: reduce) { #wipe { transition: none; } }
 </style>
 
-<canvas id="gl" aria-label="Gilded White House rooms filled with objects from FBI search photographs"></canvas>
+<canvas id="gl" aria-label="A gilded White House filled with objects from FBI search photographs"></canvas>
 
-<div id="intro" role="dialog" aria-labelledby="intro-title">
+<div id="gate" role="dialog" aria-labelledby="gate-title">
+  <form class="inner" id="gate-form" novalidate>
+    <h1 id="gate-title">RE<span class="bar">DAC</span>TED</h1>
+    <p>This piece is built from evidence in a child sex-trafficking case. It is for adults. Enter your date of birth to continue.</p>
+    <div class="dob">
+      <label>Month<select id="dob-m" required><option value="">—</option></select></label>
+      <label>Day<input id="dob-d" type="number" inputmode="numeric" min="1" max="31" placeholder="DD" required></label>
+      <label>Year<input id="dob-y" type="number" inputmode="numeric" min="1900" max="2100" placeholder="YYYY" required></label>
+    </div>
+    <p class="err" id="gate-err" hidden></p>
+    <div class="row-btns"><button class="btn primary" type="submit">Enter</button></div>
+  </form>
+</div>
+
+<div id="intro" role="dialog" aria-labelledby="intro-title" hidden>
   <div class="inner">
     <h1 id="intro-title">RE<span class="bar">DAC</span>TED</h1>
-    <p>Data Set 1 of the Justice Department's Epstein release is 3,097 FBI search photographs, beginning at the Manhattan townhouse. These rooms hold what those photographs caught, in the order they were taken, moved onto the White House public tour: the fire extinguishers, the banker's boxes, the network switches, the fuel drums, the boxing gloves.</p>
-    <p>Every photograph with no legible text hangs as an empty gilded frame. The people are the one thing kept out. Each black figure stands for 1,000 redactions in the release.</p>
-    <p class="meta">Object counts come from OCR text matched against a list of everyday objects; the redaction total counts fragments only, not their contents. Data: <a href="https://huggingface.co/datasets/kabasshouse/epstein-data" target="_blank" rel="noopener">kabasshouse/epstein-data</a> (CC-BY-4.0).</p>
-    <button id="begin" type="button" disabled>Gilding the rooms…</button>
+    <p>Data Set 1 of the Justice Department's Epstein release is 3,097 FBI search photographs, beginning at the Manhattan townhouse. This house holds what those photographs caught, in the order they were taken, moved onto the rooms of the White House public tour: the fire extinguishers, the banker's boxes, the network switches, the fuel drums, the boxing gloves.</p>
+    <p>You arrive on the North Lawn. Walk up the drive and in through the North Portico.</p>
+    <p>Every photograph with no legible text is an empty gilded frame. The people are the one thing kept out. Each black figure stands for 1,000 redactions in the release. Everything is arranged by what it is: the office holds the computers and phones, the gym the weights, the old East Wing the storage and the vehicles. Click anything to see where it came from. Sit at a computer to read every web address in the emails. Press Figure to drop the ground and see who and what is left.</p>
+    <p class="keys" id="keys"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> walk · mouse to look · <kbd>Shift</kbd> run · click to inspect · <kbd>Esc</kbd> release the mouse</p>
+    <p class="meta">Objects are matched from OCR text against a list of everyday things; the redaction total counts fragments only, never their contents. In February 2026 the Justice Department took down files that exposed victims; nothing in this piece shows a person. Data: <a href="https://huggingface.co/datasets/kabasshouse/epstein-data" target="_blank" rel="noopener">kabasshouse/epstein-data</a> (CC-BY-4.0). Models and surfaces: <a href="https://polyhaven.com" target="_blank" rel="noopener">Poly Haven</a> (CC0).</p>
+    <div class="row-btns">
+      <button id="begin" class="btn primary" type="button" disabled>Gilding the rooms…</button>
+      <button id="begin-tour" class="btn ghost" type="button" disabled>Guided tour</button>
+    </div>
   </div>
 </div>
 
-<section id="placard" aria-live="polite" hidden>
+<section id="placard" aria-live="polite" hidden title="Show or hide the room's details">
   <div class="code" id="p-code">—</div>
   <div class="body">
     <div class="title" id="p-title">—</div>
-    <div class="row"><div class="k">Floor</div><div class="v" id="p-floor">—</div></div>
-    <div class="row"><div class="k">Photographs</div><div class="v" id="p-efta">—</div></div>
-    <div class="row"><div class="k">Empty frames</div><div class="v" id="p-frames">—</div></div>
-    <div class="row"><div class="k">Inventory</div><div class="v" id="p-inv">—</div></div>
-    <div class="row"><div class="k">Figures</div><div class="v" id="p-fig">—</div></div>
-    <div class="row sc"><div class="k">Search compl.</div><div class="v"><span>Yes</span><span class="x">X</span></div></div>
+    <div class="sum" id="p-sum">—</div>
+    <div class="rows">
+      <div class="row"><div class="k">Floor</div><div class="v" id="p-floor">—</div></div>
+      <div class="row"><div class="k">Photographs</div><div class="v" id="p-efta">—</div></div>
+      <div class="row"><div class="k">Inventory</div><div class="v" id="p-inv">—</div></div>
+    </div>
   </div>
 </section>
 
-<nav id="controls" aria-label="Tour" hidden>
+<div id="controls" hidden>
+  <button class="ctl" id="figure" type="button" title="Drop the ground; keep only the figures and the seized evidence">Figure</button>
+  <button class="ctl" id="mode" type="button">Tour</button>
+</div>
+<nav id="tourbar" aria-label="Tour" hidden>
   <button class="ctl" id="prev" type="button" aria-label="Previous room">‹</button>
   <button class="ctl" id="play" type="button">Pause</button>
   <button class="ctl" id="next" type="button" aria-label="Next room">›</button>
   <span id="counter">01 / 13</span>
 </nav>
-<div id="hint" hidden>Drag to look around</div>
+<div id="hint" hidden></div>
+<div id="cross" hidden></div>
+<div id="stick" hidden><i></i></div>
+
+<aside id="info" hidden aria-live="polite">
+  <header><div style="flex:1;min-width:0"><div class="kind" id="i-kind">Object</div><h2 id="i-title">—</h2></div><button class="x" id="i-close" type="button" aria-label="Close">✕</button></header>
+  <dl id="i-rows"></dl>
+  <div class="note" id="i-note" hidden></div>
+</aside>
+<div id="pc" hidden role="dialog" aria-labelledby="pc-title">
+  <div class="win">
+    <div class="tbar"><span id="pc-title">History</span><button id="pc-close" class="x" type="button" aria-label="Close">✕</button></div>
+    <div class="tools"><input id="pc-q" type="search" placeholder="Search addresses" aria-label="Search addresses" autocomplete="off"><span id="pc-count"></span></div>
+    <ol id="pc-list"></ol>
+    <div class="more"><button id="pc-more" type="button" hidden>Show more</button></div>
+    <p class="foot" id="pc-foot"></p>
+  </div>
+</div>
 <div id="wipe"></div>
 
 <script type="importmap">
@@ -154,24 +238,44 @@ import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
 
 const $ = (id) => document.getElementById(id);
 function fail(msg) { const d = document.createElement('div'); d.id = 'err'; d.textContent = msg; document.body.appendChild(d); }
+const begin = $('begin');
+const status = (t) => { begin.textContent = t; };
+
+// Age gate: 18 or older, checked against the date entered. Remembered on this device only.
+{
+  const sel = $('dob-m');
+  ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'].forEach((m, i) => { const o = document.createElement('option'); o.value = i + 1; o.textContent = m; sel.append(o); });
+  let ok = false; try { ok = localStorage.getItem('redacted-18') === '1'; } catch (_) {}
+  const pass = () => { $('gate').hidden = true; $('intro').hidden = false; };
+  if (ok) pass();
+  $('gate-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const m = +sel.value, d = +$('dob-d').value, y = +$('dob-y').value, err = $('gate-err');
+    const dob = new Date(y, m - 1, d);
+    if (!m || !d || !y || dob.getFullYear() !== y || dob.getMonth() !== m - 1 || dob.getDate() !== d || y < 1900) { err.hidden = false; err.textContent = 'Enter a real date: month, day and four-digit year.'; return; }
+    const now = new Date(); let age = now.getFullYear() - y; if (now.getMonth() < m - 1 || (now.getMonth() === m - 1 && now.getDate() < d)) age--;
+    if (age < 18) { err.hidden = false; err.textContent = 'This piece is for adults 18 and over.'; return; }
+    try { localStorage.setItem('redacted-18', '1'); } catch (_) {}
+    pass();
+  });
+}
 
 let inv;
-try { inv = await (await fetch('inventory.json')).json(); }
+try { inv = await (await fetch('gallery.json')).json(); }
 catch (e) { fail('The room inventory did not load. Reload the page to try again.'); throw e; }
 
 // ---------------------------------------------------------------- helpers
 let seed = 20190706;
 const rand = () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
 const rr = (a, b) => a + (b - a) * rand();
-const M = new THREE.Matrix4(), Q = new THREE.Quaternion(), V = new THREE.Vector3(), S1 = new THREE.Vector3(1, 1, 1);
-const E = new THREE.Euler();
+const H = Math.PI / 2;
 function mat4(x, y, z, rx = 0, ry = 0, rz = 0, sx = 1, sy = 1, sz = 1) {
   return new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(rx, ry, rz)), new THREE.Vector3(sx, sy, sz));
 }
-// Merge geometries after reducing each to non-indexed position/normal/uv, so anything can merge with anything.
 function clean(g) {
   g = g.index ? g.toNonIndexed() : g;
   for (const k of Object.keys(g.attributes)) if (!['position', 'normal', 'uv'].includes(k)) g.deleteAttribute(k);
@@ -181,24 +285,54 @@ function clean(g) {
   return g;
 }
 function merge(list) { return list.length ? mergeGeometries(list.map(clean)) : null; }
+const box = (w, h, d, x, y, z, rx = 0, ry = 0, rz = 0) => new THREE.BoxGeometry(w, h, d).applyMatrix4(mat4(x, y, z, rx, ry, rz));
+const cyl = (rt, rb, h, x, y, z, rx = 0, ry = 0, rz = 0, seg = 18) => new THREE.CylinderGeometry(rt, rb, h, seg).applyMatrix4(mat4(x, y, z, rx, ry, rz));
+const sph = (r, x, y, z, sx = 1, sy = 1, sz = 1) => new THREE.SphereGeometry(r, 16, 12).applyMatrix4(mat4(x, y, z, 0, 0, 0, sx, sy, sz));
+const tor = (r, t, x, y, z, rx = 0, ry = 0, rz = 0, arc = Math.PI * 2) => new THREE.TorusGeometry(r, t, 8, 24, arc).applyMatrix4(mat4(x, y, z, rx, ry, rz));
+const pad = (n, k = 5) => String(n).padStart(k, '0');
+const efta = (n) => `EFTA${pad(n, 8)}`;
+const dojUrl = (n) => `https://www.justice.gov/epstein/files/DataSet%201/${efta(n)}.pdf`;
+const dojDoc = (file, ds) => { const m = /^DataSet(\d+)$/.exec(ds || ''); return m && file ? `https://www.justice.gov/epstein/files/DataSet%20${m[1]}/${file}.pdf` : null; };
 
 // ---------------------------------------------------------------- renderer
 const canvas = $('gl');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.05;
+renderer.toneMappingExposure = 1.0;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x0b0a08);
+scene.background = new THREE.Color(0x0a0d14);
+const camera = new THREE.PerspectiveCamera(66, 1, 0.05, 160);
+const hemi = new THREE.HemisphereLight(0xfff1dc, 0x3a2c18, 0.55); scene.add(hemi);
 const pmrem = new THREE.PMREMGenerator(renderer);
-scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-scene.add(new THREE.HemisphereLight(0xfff1dc, 0x3a2c18, 1.1));
-const camera = new THREE.PerspectiveCamera(62, 1, 0.05, 120);
+try {
+  status('Lighting the ballroom…');
+  const env = await (await fetch('env/ballroom.json')).json();
+  const bytes = Uint8Array.from(atob(env.base64), (c) => c.charCodeAt(0));
+  const url = URL.createObjectURL(new Blob([bytes]));
+  const hdr = await new RGBELoader().loadAsync(url);
+  hdr.mapping = THREE.EquirectangularReflectionMapping;
+  scene.environment = pmrem.fromEquirectangular(hdr).texture;
+  URL.revokeObjectURL(url);
+} catch (e) { console.warn('HDRI failed, using studio light', e); scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture; }
 
-// ---------------------------------------------------------------- materials
-const gold = new THREE.MeshStandardMaterial({ color: 0xf0c25a, metalness: 1, roughness: 0.2, envMapIntensity: 1.6 });
-const goldFrame = new THREE.MeshStandardMaterial({ color: 0xf5c862, metalness: 1, roughness: 0.16, envMapIntensity: 1.8 });
+// ---------------------------------------------------------------- materials and surfaces
+const texLoader = new THREE.TextureLoader();
+const TEX = {};
+async function surface(id) {
+  const load = (k, srgb) => texLoader.loadAsync(`tex/${id}_${k}.jpg`).then((t) => { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8; if (srgb) t.colorSpace = THREE.SRGBColorSpace; return t; }).catch(() => null);
+  const [map, normalMap, arm] = await Promise.all([load('diff', true), load('nor'), load('arm')]);
+  TEX[id] = { map, normalMap, arm };
+}
+status('Laying the floors…');
+await Promise.all(['herringbone_parquet', 'marble_tiles', 'painted_plaster_wall', 'quatrefoil_jacquard_fabric', 'poly_wool_herringbone', 'dark_paneled_wood', 'concrete_floor_worn_001', 'large_floor_tiles_02', 'long_white_tiles'].map(surface));
+function surfMat(id, color = 0xffffff, extra = {}) {
+  const t = TEX[id] || {};
+  return new THREE.MeshStandardMaterial({ color, map: t.map, normalMap: t.normalMap, roughnessMap: t.arm, metalnessMap: t.arm, roughness: 1, metalness: t.arm ? 1 : 0, ...extra });
+}
+const gold = new THREE.MeshStandardMaterial({ color: 0xf0c25a, metalness: 1, roughness: 0.2, envMapIntensity: 1.5 });
+const goldFrame = new THREE.MeshStandardMaterial({ color: 0xf5c862, metalness: 1, roughness: 0.16, envMapIntensity: 1.7 });
 const figureMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
 const matCache = new Map();
 function mat(hex, rough = 0.78, metal = 0, extra = {}) {
@@ -214,114 +348,10 @@ const C = {
   blue: mat(0x1f4f9a, 0.45, 0.2), alu: mat(0xc6cacf, 0.35, 0.8), terracotta: mat(0xb4552c, 0.85), leaf: mat(0x3d7a36, 0.8),
   piano: mat(0x0f0f11, 0.12, 0.1), wood: mat(0x5b3a22, 0.6), pink: mat(0xe5b8b2, 0.5), skyblue: mat(0x4a78b5, 0.55),
   glass: mat(0x9fd3e8, 0.08, 0, { transparent: true, opacity: 0.55 }), screen: mat(0x0d0f13, 0.15, 0.2),
-  door: mat(0xf1ede2, 0.55), seat: mat(0x8e1d23, 0.85), desk: mat(0x3f2414, 0.45),
+  door: mat(0xf1ede2, 0.5), desk: mat(0x3f2414, 0.45), stone: mat(0xd9d3c4, 0.6), grass: mat(0x24361f, 0.95),
 };
-
-// ---------------------------------------------------------------- textures
-function canvasTex(w, h, draw, rx = 1, ry = 1) {
-  const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h);
-  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(rx, ry); t.colorSpace = THREE.SRGBColorSpace;
-  t.anisotropy = 8; return t;
-}
-const parquetImg = (g, w, h) => {
-  const tones = ['#7a4b28', '#8a5631', '#6b4022', '#93603a'];
-  const n = 8, cw = w / n, ch = h / 2;
-  for (let i = 0; i < n; i++) for (let j = 0; j < 2; j++) {
-    g.fillStyle = tones[(i * 3 + j * 5) % 4]; g.fillRect(i * cw, j * ch, cw, ch);
-    g.strokeStyle = 'rgba(20,10,4,.35)'; g.lineWidth = 2; g.strokeRect(i * cw, j * ch, cw, ch);
-    for (let k = 0; k < 6; k++) { g.strokeStyle = 'rgba(40,20,8,.12)'; g.beginPath(); const yy = j * ch + rand() * ch; g.moveTo(i * cw, yy); g.lineTo((i + 1) * cw, yy + rr(-8, 8)); g.stroke(); }
-  }
-};
-const marbleImg = (g, w, h) => {
-  for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) {
-    g.fillStyle = (i + j) % 2 ? '#e9e3d4' : '#a9a294'; g.fillRect(i * w / 4, j * h / 4, w / 4, h / 4);
-  }
-  g.strokeStyle = 'rgba(90,80,70,.18)'; for (let k = 0; k < 40; k++) { g.beginPath(); g.moveTo(rand() * w, rand() * h); g.bezierCurveTo(rand() * w, rand() * h, rand() * w, rand() * h, rand() * w, rand() * h); g.stroke(); }
-};
-const damaskImg = (hex) => (g, w, h) => {
-  g.fillStyle = hex; g.fillRect(0, 0, w, h);
-  g.fillStyle = 'rgba(255,255,255,.05)';
-  for (let y = 0; y < h; y += 64) for (let x = (y / 64) % 2 ? 32 : 0; x < w; x += 64) {
-    g.beginPath(); g.ellipse(x + 16, y + 32, 9, 22, 0, 0, Math.PI * 2); g.fill();
-    g.beginPath(); g.arc(x + 16, y + 10, 5, 0, Math.PI * 2); g.fill();
-  }
-};
-const sunburstImg = (g, w, h) => {
-  g.fillStyle = '#e7c66a'; g.fillRect(0, 0, w, h);
-  g.save(); g.translate(w / 2, h / 2);
-  for (let i = 0; i < 48; i++) { g.rotate(Math.PI / 24); g.fillStyle = i % 2 ? '#f1d98c' : '#d9b252'; g.beginPath(); g.moveTo(0, 0); g.lineTo(w, -w * 0.07); g.lineTo(w, w * 0.07); g.fill(); }
-  g.restore(); g.strokeStyle = '#9d7a2a'; g.lineWidth = 18; g.beginPath(); g.arc(w / 2, h / 2, w / 2 - 12, 0, Math.PI * 2); g.stroke();
-  g.fillStyle = '#c99d3a'; g.beginPath(); g.arc(w / 2, h / 2, w * 0.14, 0, Math.PI * 2); g.fill();
-};
-
-// ---------------------------------------------------------------- rooms
-const ST = 4.6; // State Floor elevation
-const ROOMS = [
-  { id: 'ground_corridor', name: 'Ground Floor Corridor', floor: 'Ground Floor', shape: 'rect', x: 0, z: -5, w: 30, d: 3.8, h: 3.6, y: 0, wall: '#efe9dc', floorTex: 'marble', ribs: true, carpet: 0x8a1c22 },
-  { id: 'library', name: 'The Library', floor: 'Ground Floor', shape: 'rect', x: 10, z: -11.5, w: 8.6, d: 6.6, h: 3.6, y: 0, wall: '#6a4a2f', floorTex: 'parquet', chandeliers: [[0, 0]], carpet: 0x5a3b2a },
-  { id: 'vermeil_room', name: 'The Vermeil Room', floor: 'Ground Floor', shape: 'rect', x: -10, z: -11.5, w: 8.6, d: 6.6, h: 3.6, y: 0, wall: '#e3cd85', floorTex: 'parquet', chandeliers: [[0, 0]], carpet: 0x6c7a52 },
-  { id: 'china_room', name: 'The China Room', floor: 'Ground Floor', shape: 'rect', x: -10, z: 1.5, w: 8.6, d: 6.6, h: 3.6, y: 0, wall: '#9a2a2b', floorTex: 'parquet', chandeliers: [[0, 0]], carpet: 0x2c3a62 },
-  { id: 'diplomatic_reception_room', name: 'The Diplomatic Reception Room', floor: 'Ground Floor', shape: 'oval', x: 0, z: 1.5, w: 12, d: 9, h: 3.6, y: 0, wall: '#9db6ad', floorTex: 'parquet', chandeliers: [[0, 0]], carpet: 0x2f4f6c },
-  { id: 'east_room', name: 'The East Room', floor: 'State Floor', shape: 'rect', x: 20.6, z: -2, w: 11.3, d: 24.4, h: 6.7, y: ST, wall: '#f3eee2', floorTex: 'parquet', chandeliers: [[0, -7.5], [0, 0], [0, 7.5]] },
-  { id: 'green_room', name: 'The Green Room', floor: 'State Floor', shape: 'rect', x: 10.6, z: 2.2, w: 8.5, d: 6.7, h: 5.4, y: ST, wall: '#2f6a49', floorTex: 'parquet', chandeliers: [[0, 0]], carpet: 0x6d5a2a },
-  { id: 'blue_room', name: 'The Blue Room', floor: 'State Floor', shape: 'oval', x: 0, z: 2.6, w: 12, d: 9, h: 5.4, y: ST, wall: '#2c4f8f', floorTex: 'parquet', chandeliers: [[0, 0]], carpet: 0x1f3666 },
-  { id: 'red_room', name: 'The Red Room', floor: 'State Floor', shape: 'rect', x: -10.6, z: 2.2, w: 8.5, d: 6.7, h: 5.4, y: ST, wall: '#8e1e24', floorTex: 'parquet', chandeliers: [[0, 0]], carpet: 0x7a2a2a },
-  { id: 'state_dining_room', name: 'The State Dining Room', floor: 'State Floor', shape: 'rect', x: -20.6, z: -2, w: 11, d: 14.6, h: 5.4, y: ST, wall: '#eee6d2', floorTex: 'parquet', chandeliers: [[0, 0]], table: true },
-  { id: 'cross_hall', name: 'The Cross Hall', floor: 'State Floor', shape: 'rect', x: 0, z: -5.6, w: 29.4, d: 5, h: 5.4, y: ST, wall: '#f2ece0', floorTex: 'marble', columns: true, carpet: 0x9b1c22, chandeliers: [[-7, 0], [7, 0]] },
-  { id: 'entrance_hall', name: 'The Entrance Hall', floor: 'State Floor', shape: 'rect', x: 0, z: -12.2, w: 13, d: 8, h: 5.4, y: ST, wall: '#f0eadc', floorTex: 'marble', columns: true, chandeliers: [[0, 0]] },
-  { id: 'oval_office', name: 'The Oval Office', floor: 'West Wing', shape: 'oval', x: -48, z: 0, w: 10.9, d: 8.8, h: 5.5, y: 0, wall: '#e6d39c', floorTex: 'parquet', oval: true },
-];
-const invById = Object.fromEntries(inv.rooms.map((r) => [r.id, r]));
-
-// Black figures: one per 1,000 redaction fragments, shared out by floor area (largest remainder).
-const area = (r) => (r.shape === 'oval' ? Math.PI * r.w * r.d / 4 : r.w * r.d);
-{
-  const total = Math.round((inv.redaction_fragments || 0) / 1000);
-  const A = ROOMS.reduce((s, r) => s + area(r), 0);
-  const raw = ROOMS.map((r) => total * area(r) / A);
-  const base = raw.map(Math.floor); let left = total - base.reduce((a, b) => a + b, 0);
-  raw.map((v, i) => [v - base[i], i]).sort((a, b) => b[0] - a[0]).slice(0, left).forEach(([, i]) => base[i]++);
-  ROOMS.forEach((r, i) => (r.figures = base[i]));
-}
-
-// ---------------------------------------------------------------- wall strip (perimeter by arc length)
-function makeStrip(room) {
-  const pts = [];
-  if (room.shape === 'rect') {
-    const a = room.w / 2, b = room.d / 2;
-    pts.push([-a, -b], [a, -b], [a, b], [-a, b]);
-  } else {
-    const N = 96;
-    for (let i = 0; i < N; i++) { const t = i / N * Math.PI * 2; pts.push([Math.cos(t) * room.w / 2, Math.sin(t) * room.d / 2]); }
-  }
-  const segs = []; let acc = 0;
-  for (let i = 0; i < pts.length; i++) {
-    const [x1, z1] = pts[i], [x2, z2] = pts[(i + 1) % pts.length];
-    const L = Math.hypot(x2 - x1, z2 - z1); const tx = (x2 - x1) / L, tz = (z2 - z1) / L;
-    let nx = -tz, nz = tx; const mx = (x1 + x2) / 2, mz = (z1 + z2) / 2;
-    if (nx * -mx + nz * -mz < 0) { nx = -nx; nz = -nz; }
-    segs.push({ a0: acc, L, x1, z1, tx, tz, nx, nz }); acc += L;
-  }
-  const P = acc;
-  const segAt = (a) => { a = ((a % P) + P) % P; let lo = 0; for (const s of segs) { if (a >= s.a0 && a < s.a0 + s.L) return s; } return segs[segs.length - 1]; };
-  return { segs, P, rect: room.shape === 'rect', segAt,
-    at(a) { a = ((a % P) + P) % P; const s = segAt(a); const u = a - s.a0; return { x: s.x1 + s.tx * u, z: s.z1 + s.tz * u, s }; } };
-}
-// Matrix placing a local (x along wall, y up, z out of wall into room) at strip position a.
-function wallMatrix(strip, a, y, out, sx = 1, sy = 1, sz = 1) {
-  const p = strip.at(a); const s = p.s;
-  const basis = new THREE.Matrix4().makeBasis(new THREE.Vector3(s.tx, 0, s.tz), new THREE.Vector3(0, 1, 0), new THREE.Vector3(s.nx, 0, s.nz));
-  const m = new THREE.Matrix4().makeTranslation(p.x + s.nx * out, y, p.z + s.nz * out).multiply(basis);
-  return m.multiply(new THREE.Matrix4().makeScale(sx, sy, sz));
-}
 
 // ---------------------------------------------------------------- object prototypes (base at y=0, front faces +z)
-const box = (w, h, d, x, y, z, rx = 0, ry = 0, rz = 0) => new THREE.BoxGeometry(w, h, d).applyMatrix4(mat4(x, y, z, rx, ry, rz));
-const cyl = (rt, rb, h, x, y, z, rx = 0, ry = 0, rz = 0, seg = 18) => new THREE.CylinderGeometry(rt, rb, h, seg).applyMatrix4(mat4(x, y, z, rx, ry, rz));
-const sph = (r, x, y, z, sx = 1, sy = 1, sz = 1) => new THREE.SphereGeometry(r, 16, 12).applyMatrix4(mat4(x, y, z, 0, 0, 0, sx, sy, sz));
-const tor = (r, t, x, y, z, rx = 0, ry = 0, rz = 0, arc = Math.PI * 2) => new THREE.TorusGeometry(r, t, 8, 24, arc).applyMatrix4(mat4(x, y, z, rx, ry, rz));
-const H = Math.PI / 2;
-
 const PROTO = {
   storage_box: { r: 0.32, parts: [[C.card, [box(.4, .27, .31, 0, .135, 0), box(.42, .05, .33, 0, .29, 0)]], [C.white, [box(.13, .07, .005, 0, .16, .158)]]] },
   shipping_box: { r: 0.38, parts: [[C.card, [box(.52, .36, .42, 0, .18, 0)]], [C.tape, [box(.08, .004, .43, 0, .362, 0)]]] },
@@ -362,7 +392,6 @@ const PROTO = {
 };
 for (const p of Object.values(PROTO)) p.variants = [p.parts.map(([m, gs]) => [m, merge(gs)])];
 
-// Figures: standing, standing (arms forward), seated. Matte black, unlit.
 function figureGeo(kind) {
   const g = [];
   const cap = (r, l, x, y, z, rx = 0, ry = 0, rz = 0, sx = 1, sz = 1) => g.push(new THREE.CapsuleGeometry(r, l, 4, 10).applyMatrix4(mat4(x, y, z, rx, ry, rz, sx, 1, sz)));
@@ -392,24 +421,14 @@ const FRAME = merge([
   ...[[-1, -1], [-1, 1], [1, -1], [1, 1]].map(([x, y]) => sph(.06, x * .45, y * .45, .05, 1, 1, .6)),
   sph(.05, 0, .47, .05, 1.6, .8, .6),
 ]);
-
-// Chandelier: one gilt mesh, one glowing mesh.
-const CHAND = (() => {
-  const g = [cyl(.02, .02, .9, 0, .45, 0), sph(.16, 0, -.05, 0, 1, 1.3, 1), tor(.42, .025, 0, -.12, 0, H), tor(.26, .02, 0, .22, 0, H), cyl(.05, .12, .12, 0, -.3, 0)];
-  const b = [];
-  for (let i = 0; i < 10; i++) { const t = i / 10 * Math.PI * 2; const x = Math.cos(t) * .42, z = Math.sin(t) * .42;
-    g.push(cyl(.025, .025, .12, x, -.06, z)); g.push(cyl(.05, .03, .03, x, -.12, z)); b.push(sph(.035, x, .03, z, 1, 1.5, 1)); }
-  for (let i = 0; i < 6; i++) { const t = i / 6 * Math.PI * 2 + .3; const x = Math.cos(t) * .26, z = Math.sin(t) * .26; g.push(cyl(.02, .02, .1, x, .28, z)); b.push(sph(.03, x, .37, z, 1, 1.5, 1)); }
-  for (let i = 0; i < 24; i++) { const t = i / 24 * Math.PI * 2; g.push(sph(.022, Math.cos(t) * .44, -.22 - (i % 2) * .05, Math.sin(t) * .44)); }
-  return { gilt: merge(g), bulbs: merge(b) };
-})();
+const bulbMat = glow(0xffe6b0, 2.2);
+// The black pane that fills a withheld frame.
+const PANE = new THREE.PlaneGeometry(.8, .8).translate(0, 0, .03);
+const paneMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
 
 // ---------------------------------------------------------------- downloaded models (Poly Haven, CC0)
-const begin = $('begin');
 const loader = new GLTFLoader();
-const MODEL_IDS = ['cardboard_box_01', 'korean_fire_extinguisher_01', 'lightbulb_01', 'Drill_01', 'ladder_sectioned_01', 'compost_bags',
-  'book_encyclopedia_set_01', 'stationery_supplies', 'Barrel_01', 'metal_jerrycan', 'filmstrip_projector_8mm', 'potted_plant_01', 'potted_plant_04',
-  'multi_cleaner_5_litre', 'Chandelier_01', 'Chandelier_03', 'ornate_mirror_01', 'marble_bust_01', 'ClassicConsole_01', 'dining_chair_02'];
+const MODEL_IDS = ['cardboard_box_01', 'korean_fire_extinguisher_01', 'lightbulb_01', 'Drill_01', 'ladder_sectioned_01', 'compost_bags', 'book_encyclopedia_set_01', 'stationery_supplies', 'Barrel_01', 'metal_jerrycan', 'filmstrip_projector_8mm', 'potted_plant_01', 'potted_plant_04', 'multi_cleaner_5_litre', 'Chandelier_01', 'Chandelier_03', 'ornate_mirror_01', 'marble_bust_01', 'ClassicConsole_01', 'dining_chair_02', 'Sofa_01', 'ArmChair_01', 'metal_tool_chest', 'throw_pillows_01', 'vintage_grandfather_clock_01', 'Television_01', 'television_02', 'electric_stove', 'metal_office_desk', 'planter_box_01', 'GothicBed_01', 'ClassicNightstand_01', 'sofa_02', 'coffee_table_round_01', 'desk_lamp_arm_01', 'covered_car', 'hand_truck', 'tool_cart', 'vintage_microwave', 'drawer_cabinet', 'binder_notebook', 'portable_generator'];
 const MD = {};
 let loaded = 0;
 await Promise.all(MODEL_IDS.map(async (id) => {
@@ -417,23 +436,16 @@ await Promise.all(MODEL_IDS.map(async (id) => {
     const g = await loader.loadAsync(`models/${id}.json`);
     g.scene.updateMatrixWorld(true);
     const byMat = new Map();
-    g.scene.traverse((o) => {
-      if (!o.isMesh) return;
-      const geo = o.geometry.clone().applyMatrix4(o.matrixWorld);
-      if (!byMat.has(o.material)) byMat.set(o.material, []);
-      byMat.get(o.material).push(geo);
-    });
+    g.scene.traverse((o) => { if (!o.isMesh) return; const geo = o.geometry.clone().applyMatrix4(o.matrixWorld); if (!byMat.has(o.material)) byMat.set(o.material, []); byMat.get(o.material).push(geo); });
     MD[id] = [...byMat].map(([m, gs]) => [m, merge(gs)]);
   } catch (e) { console.warn('model failed', id, e); }
-  begin.textContent = `Fetching the inventory… ${++loaded}/${MODEL_IDS.length}`;
+  status(`Fetching the inventory… ${++loaded}/${MODEL_IDS.length}`);
 }));
 const partsBox = (parts) => { const b = new THREE.Box3(); for (const [, g] of parts) { g.computeBoundingBox(); b.union(g.boundingBox); } return b; };
-// A model's parts, set on the floor and centred, then moved into place.
-function mp(id, x = 0, y = 0, z = 0, ry = 0, s = 1, { floor = true } = {}) {
+function mp(id, x = 0, y = 0, z = 0, ry = 0, s = 1) {
   const src = MD[id]; if (!src) return [];
   const b = partsBox(src), c = b.getCenter(new THREE.Vector3());
-  const pre = floor ? new THREE.Matrix4().makeTranslation(-c.x, -b.min.y, -c.z) : new THREE.Matrix4();
-  const m = mat4(x, y, z, 0, ry, 0, s, s, s).multiply(pre);
+  const m = mat4(x, y, z, 0, ry, 0, s, s, s).multiply(new THREE.Matrix4().makeTranslation(-c.x, -b.min.y, -c.z));
   return src.map(([mt, g]) => [mt, g.clone().applyMatrix4(m)]);
 }
 function combine(...lists) {
@@ -441,292 +453,136 @@ function combine(...lists) {
   for (const [m, g] of lists.flat()) { if (!by.has(m)) by.set(m, []); by.get(m).push(g); }
   return [...by].map(([m, gs]) => [m, merge(gs)]);
 }
-const proc = (cat) => PROTO[cat].variants[0];
-const use = (cat, r, ...variants) => { if (variants.every((v) => v.length)) { PROTO[cat].variants = variants; PROTO[cat].r = r; } };
-use('storage_box', .32, combine(mp('cardboard_box_01'), mp('cardboard_box_01', .02, .335, -.02, .35, .94)), mp('cardboard_box_01'));
-use('shipping_box', .42, mp('cardboard_box_01', 0, 0, 0, 0, 1.35));
-use('fire_extinguisher', .2, mp('korean_fire_extinguisher_01'));
-use('lightbulb', .22, combine([[C.white, merge([box(.32, .11, .22, 0, .055, 0)])]], mp('lightbulb_01', -.09, .11, 0), mp('lightbulb_01', .02, .11, .04), mp('lightbulb_01', .1, .11, -.03)));
-use('power_tool', .3, combine([[C.red, merge([box(.46, .16, .22, 0, .08, 0)])], [C.black, merge([box(.2, .03, .04, 0, .175, 0)])]], mp('Drill_01', .05, .16, .02, .4)));
-use('potting_soil', .7, mp('compost_bags', 0, 0, 0, 0, .72));
-use('books', .32, mp('book_encyclopedia_set_01'));
-use('office_supplies', .2, mp('stationery_supplies'));
-use('fuel_drum', .55, combine(mp('Barrel_01'), mp('metal_jerrycan', .48, 0, .12, .5)), mp('Barrel_01'));
-use('slide_projector', .3, mp('filmstrip_projector_8mm'));
-use('potted_plant', .45, mp('potted_plant_01', 0, 0, 0, 0, .9), mp('potted_plant_04', 0, 0, 0, 0, 2.4));
-use('laundry', .18, combine(mp('multi_cleaner_5_litre'), mp('multi_cleaner_5_litre', .2, 0, .06, .5)));
-if (MD.ladder_sectioned_01) { PROTO.ladder.variants = [mp('ladder_sectioned_01')]; PROTO.ladder.lean = true; }
-
-// Empty frame: the ornate frame with its canvas taken out, scaled to 1 x 1.
-const FRAME_PARTS = [[goldFrame, FRAME]];
-// Chandeliers hang from their origin. Bulbs glow.
-const bulbMat = glow(0xffe6b0, 2.2);
+// Which model each category uses, for the evidence tag.
+const MODEL_OF = {};
+const use = (cat, r, ids, ...variants) => { if (variants.every((v) => v.length)) { PROTO[cat].variants = variants; PROTO[cat].r = r; MODEL_OF[cat] = ids; } };
+use('storage_box', .32, ['cardboard_box_01'], combine(mp('cardboard_box_01'), mp('cardboard_box_01', .02, .335, -.02, .35, .94)), mp('cardboard_box_01'));
+use('shipping_box', .42, ['cardboard_box_01'], mp('cardboard_box_01', 0, 0, 0, 0, 1.35));
+use('fire_extinguisher', .2, ['korean_fire_extinguisher_01'], mp('korean_fire_extinguisher_01'));
+use('lightbulb', .22, ['lightbulb_01'], combine([[C.white, merge([box(.32, .11, .22, 0, .055, 0)])]], mp('lightbulb_01', -.09, .11, 0), mp('lightbulb_01', .02, .11, .04), mp('lightbulb_01', .1, .11, -.03)));
+use('power_tool', .45, ['metal_tool_chest', 'Drill_01'], combine(mp('metal_tool_chest', 0, 0, 0, 0, .8), mp('Drill_01', .05, .0, .45, .4)));
+use('potting_soil', .7, ['compost_bags'], mp('compost_bags', 0, 0, 0, 0, .72));
+use('books', .32, ['book_encyclopedia_set_01'], mp('book_encyclopedia_set_01'));
+use('office_supplies', .2, ['stationery_supplies'], mp('stationery_supplies'));
+use('fuel_drum', .55, ['Barrel_01', 'metal_jerrycan'], combine(mp('Barrel_01'), mp('metal_jerrycan', .48, 0, .12, .5)), mp('Barrel_01'));
+use('slide_projector', .3, ['filmstrip_projector_8mm'], mp('filmstrip_projector_8mm'));
+use('potted_plant', .45, ['potted_plant_01', 'potted_plant_04'], mp('potted_plant_01', 0, 0, 0, 0, .9), mp('potted_plant_04', 0, 0, 0, 0, 2.4));
+use('laundry', .18, ['multi_cleaner_5_litre'], combine(mp('multi_cleaner_5_litre'), mp('multi_cleaner_5_litre', .2, 0, .06, .5)));
+use('bed_linens', .35, ['throw_pillows_01'], combine([[C.white, merge([0, 1, 2].map((i) => box(.42, .07, .32, i * .01, .035 + i * .072, 0, 0, i * .05, 0)))]], mp('throw_pillows_01', 0, .22, 0, .2, .7)));
+if (MD.ladder_sectioned_01) { PROTO.ladder.variants = [mp('ladder_sectioned_01')]; PROTO.ladder.lean = true; MODEL_OF.ladder = ['ladder_sectioned_01']; }
 const lit = (parts) => parts.map(([m, g]) => [/lamp|bulb/i.test(m.name) ? bulbMat : m, g]);
 const CHAND_SMALL = MD.Chandelier_01 ? lit(MD.Chandelier_01) : null;
 const CHAND_GRAND = MD.Chandelier_03 ? lit(MD.Chandelier_03) : CHAND_SMALL;
 
-// ---------------------------------------------------------------- build one room
-function buildRoom(room) {
-  const ri = invById[room.id] || { objects: {}, wordless: 0, photos: 0 };
-  const group = new THREE.Group(); group.position.set(room.x, room.y, room.z); group.visible = false; scene.add(group);
-  const strip = makeStrip(room); room.strip = strip;
-  const { w, d, h } = room;
-  const wallTex = canvasTex(256, 256, damaskImg(room.wall), 1, 1);
-  const wallMat = new THREE.MeshStandardMaterial({ map: wallTex, roughness: .85, side: THREE.BackSide });
-  const floorTex = room.floorTex === 'marble' ? canvasTex(512, 512, marbleImg) : canvasTex(512, 256, parquetImg);
-  floorTex.repeat.set(room.floorTex === 'marble' ? w / 2.4 : w / 3.2, room.floorTex === 'marble' ? d / 2.4 : d / 1.6);
-  const floorMat = new THREE.MeshStandardMaterial({ map: floorTex, roughness: room.floorTex === 'marble' ? .25 : .5, side: THREE.BackSide });
-  const ceilMat = new THREE.MeshStandardMaterial({ color: room.oval && room.id === 'oval_office' ? 0xf3ead2 : 0xf5f1e8, roughness: .9, side: THREE.BackSide });
+// ---------------------------------------------------------------- floor plan (metres; x east, z south). The rooms are larger than the real house.
+const ST = 4.6, SH = 6.5, GH = 4.2;
+const WALL = {
+  ivory: { surf: 'painted_plaster_wall', color: 0xf4eee0 }, white: { surf: 'painted_plaster_wall', color: 0xfbf8f1 }, cream: { surf: 'painted_plaster_wall', color: 0xe9e1cf },
+  green: { surf: 'quatrefoil_jacquard_fabric', color: 0x5f9a6f }, blue: { surf: 'quatrefoil_jacquard_fabric', color: 0x6a8fd8 }, red: { surf: 'quatrefoil_jacquard_fabric', color: 0xc8343a },
+  crimson: { surf: 'quatrefoil_jacquard_fabric', color: 0xb13a35 }, sea: { surf: 'painted_plaster_wall', color: 0xb5cfc7 },
+  gilt: { surf: 'painted_plaster_wall', color: 0xf0dfae }, panel: { surf: 'dark_paneled_wood', color: 0xffffff }, whitetile: { surf: 'long_white_tiles', color: 0xffffff },
+  concrete: { surf: 'concrete_floor_worn_001', color: 0xd9d5cd },
+};
+const SPACES = [
+  // State Floor
+  { id: 'entrance_hall', place: 'hall', name: 'The Entrance Hall', floor: 'State Floor', shape: 'rect', x0: -9, x1: 9, z0: -16, z1: -8, y: ST, h: SH, floorS: 'marble', wall: 'ivory', columns: 'entrance', chandeliers: [[0, -12]] },
+  { id: 'cross_hall', place: 'hall', name: 'The Cross Hall', floor: 'State Floor', shape: 'rect', x0: -30, x1: 30, z0: -8, z1: -2, y: ST, h: SH, floorS: 'marble', wall: 'ivory', columns: 'cross', carpet: 0x9b1c22, chandeliers: [[-15, -5], [0, -5], [15, -5]] },
+  { id: 'east_room', place: 'sitting', name: 'The East Room', label: 'Sitting rooms', floor: 'State Floor', shape: 'rect', x0: 30, x1: 46, z0: -16, z1: 22, y: ST, h: 8, floorS: 'parquet', wall: 'white', chandeliers: [[38, -9], [38, 3], [38, 15]] },
+  { id: 'east_wing', place: 'ballroom', name: 'The East Wing Ballroom', label: 'Storage, garages and grounds', floor: 'State Floor, where the East Wing stood', shape: 'rect', x0: 46, x1: 146, z0: -12, z1: 18, y: ST, h: 13, floorS: 'parquet', wall: 'gilt', mirrors: true },
+  { id: 'green_room', place: 'kitchen', name: 'The Green Room', label: 'Kitchens and pantries', floor: 'State Floor', shape: 'rect', x0: 10, x1: 30, z0: -2, z1: 14, y: ST, h: SH, floorS: 'tile', wall: 'green', chandeliers: [[20, 6]] },
+  { id: 'blue_room', place: 'gym', name: 'The Blue Room', label: 'The gym', floor: 'State Floor', shape: 'oval', cx: 0, cz: 6, rx: 10, rz: 8, y: ST, h: SH, floorS: 'parquet', wall: 'blue', chandeliers: [[0, 6]] },
+  { id: 'red_room', place: 'bedroom', name: 'The Red Room', label: 'Bedrooms', floor: 'State Floor', shape: 'rect', x0: -30, x1: -10, z0: -2, z1: 14, y: ST, h: SH, floorS: 'carpet', carpetColor: 0x5e1a1f, wall: 'red', chandeliers: [[-20, 6]] },
+  { id: 'state_dining_room', place: 'mechanical', name: 'The State Dining Room', label: 'Mechanical and utility rooms', floor: 'State Floor', shape: 'rect', x0: -48, x1: -30, z0: -16, z1: 22, y: ST, h: SH, floorS: 'concrete', wall: 'cream', chandeliers: [[-39, -6], [-39, 10]] },
+  { id: 'stair_hall', name: 'The Grand Staircase', floor: 'Between floors', shape: 'rect', x0: 9, x1: 24, z0: -16, z1: -8, y: 0, h: ST + SH, floorS: 'marble', wall: 'ivory', stairs: true, chandeliers: [[18.5, -12]] },
+  // Ground Floor
+  { id: 'ground_corridor', place: 'hall', name: 'Ground Floor Corridor', floor: 'Ground Floor', shape: 'rect', x0: -30, x1: 30, z0: -8, z1: -3, y: 0, h: GH, floorS: 'marble', wall: 'ivory', ribs: true, carpet: 0x8a1c22 },
+  { id: 'library', place: 'library', name: 'The Library', label: 'Libraries and studies', floor: 'Ground Floor', shape: 'rect', x0: -8, x1: 8, z0: -16, z1: -8, y: 0, h: GH, floorS: 'parquet', wall: 'panel', carpet: 0x5a3b2a, chandeliers: [[0, -12]] },
+  { id: 'vermeil_room', place: 'bath', name: 'The Vermeil Room', label: 'Bathrooms', floor: 'Ground Floor', shape: 'rect', x0: -30, x1: -8, z0: -16, z1: -8, y: 0, h: GH, floorS: 'marble', wall: 'whitetile', chandeliers: [[-19, -12]] },
+  { id: 'vault', place: 'vault', name: 'The Vault', label: 'Safes and vaults', floor: 'Ground Floor', shape: 'rect', x0: 24, x1: 30, z0: -16, z1: -8, y: 0, h: GH, floorS: 'concrete', wall: 'concrete' },
+  { id: 'china_room', place: 'laundry', name: 'The China Room', label: 'Laundry and linens', floor: 'Ground Floor', shape: 'rect', x0: -30, x1: -8, z0: -3, z1: 12, y: 0, h: GH, floorS: 'tile', wall: 'crimson', chandeliers: [[-19, 4.5]] },
+  { id: 'diplomatic_reception_room', place: 'closet', name: 'The Diplomatic Reception Room', label: 'Closets and dressing rooms', floor: 'Ground Floor', shape: 'oval', cx: 0, cz: 4.5, rx: 8, rz: 7.5, y: 0, h: GH, floorS: 'carpet', carpetColor: 0x2f4f6c, wall: 'sea', chandeliers: [[0, 4.5]] },
+  { id: 'map_room', place: 'massage', name: 'The Map Room', label: 'Massage rooms', floor: 'Ground Floor', shape: 'rect', x0: 8, x1: 22, z0: -3, z1: 7, y: 0, h: GH, floorS: 'tile', wall: 'sea' },
+  { id: 'west_colonnade', place: 'hall', name: 'The West Colonnade', floor: 'Ground Floor', shape: 'rect', x0: -60, x1: -30, z0: -7, z1: -4, y: 0, h: GH, floorS: 'marble', wall: 'ivory' },
+  { id: 'oval_office', place: 'office', name: 'The Oval Office', label: 'Offices', floor: 'West Wing', shape: 'oval', cx: -72, cz: -5.5, rx: 12, rz: 9, y: 0, h: 6, floorS: 'parquet', wall: 'gilt', oval: true },
+  { id: 'situation_room', place: 'situation', name: 'The Situation Room', label: 'Servers and surveillance', floor: 'West Wing, below', shape: 'rect', x0: -56, x1: -40, z0: -4, z1: 10, y: 0, h: GH, floorS: 'carpet', carpetColor: 0x23262b, wall: 'panel' },
+];
+const SP = Object.fromEntries(SPACES.map((s) => [s.id, s]));
+const DOORS = [
+  // State Floor
+  { x: 0, z: -16, y: ST, w: 2.2, h: 3.6 }, { x: 0, z: -8, y: ST, w: 8, h: 5, open: true }, { x: 9, z: -15.4, y: ST, w: 1.6 },
+  { x: 30, z: -5, y: ST, w: 2 }, { x: -30, z: -5, y: ST, w: 2 }, { x: -20, z: -2, y: ST }, { x: 0, z: -2, y: ST, w: 2 }, { x: 20, z: -2, y: ST },
+  { x: -10, z: 6, y: ST }, { x: 10, z: 6, y: ST }, { x: 30, z: 6, y: ST }, { x: -30, z: 6, y: ST }, { x: 46, z: 3, y: ST, w: 5, h: 6 },
+  // Ground Floor
+  { x: 0, z: -8, y: 0 }, { x: -19, z: -8, y: 0 }, { x: 18.5, z: -8, y: 0, w: 1.8 }, { x: 27, z: -8, y: 0 }, { x: -19, z: -3, y: 0 }, { x: 0, z: -3, y: 0, w: 1.8 },
+  { x: 15, z: -3, y: 0 }, { x: -8, z: 4.5, y: 0 }, { x: 8, z: 4.5, y: 0 }, { x: -30, z: -5.5, y: 0, w: 1.8 }, { x: -60, z: -5.5, y: 0, w: 2 }, { x: -48, z: -4, y: 0, w: 1.6 },
+];
+for (const d of DOORS) { d.w = d.w || 1.4; d.h = d.h || (d.y > 1 ? 3.0 : 2.55); }
 
-  if (room.shape === 'rect') {
-    wallTex.repeat.set((w + d) / 1.2, h / 1.2);
-    const shell = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), [wallMat, wallMat, ceilMat, floorMat, wallMat, wallMat]);
-    shell.position.y = h / 2; group.add(shell);
-  } else {
-    wallTex.repeat.set((w + d) * 1.6 / 1.2, h / 1.2);
-    const wall = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, h, 96, 1, true), wallMat); wall.scale.set(w / 2, 1, d / 2); wall.position.y = h / 2; group.add(wall);
-    const fl = new THREE.Mesh(new THREE.CircleGeometry(1, 96), floorMat); fl.rotation.x = H; fl.scale.set(w / 2, d / 2, 1); fl.position.y = 0.001; group.add(fl);
-    const ce = new THREE.Mesh(new THREE.CircleGeometry(1, 96), ceilMat); ce.rotation.x = -H; ce.scale.set(w / 2, d / 2, 1); ce.position.y = h; group.add(ce);
-  }
+// Stair hall: a flight from the state-floor landing (z -14.8) down to the ground (z -9.2), between x 10 and 13.
+const STAIR = { x0: 10, x1: 13, zTop: -14.8, zBot: -9.2 };
+const stairY = (z) => ST * Math.min(1, Math.max(0, (STAIR.zBot - z) / (STAIR.zBot - STAIR.zTop)));
 
-  // Doors (on the strip), recorded so nothing hangs across them.
-  const doors = [];
-  const dh = Math.min(3.1, h - .9), dw = 1.35;
-  if (strip.rect) strip.segs.forEach((s) => { if (s.L >= 5) doors.push(s.a0 + s.L / 2); });
-  else if (room.id === 'oval_office') doors.push(strip.P * .08, strip.P * .42, strip.P * .58, strip.P * .92);
-  else doors.push(strip.P * .25, strip.P * .75);
-  const blocked = doors.map((a) => [a - dw / 2 - .45, a + dw / 2 + .45]);
-  const isBlocked = (a0, a1) => blocked.some(([b0, b1]) => a1 > b0 && a0 < b1);
-
-  // Gilding: baseboard, chair rail, cornice, pilasters, door architraves, ceiling work.
-  const gilt = [];
-  const along = (geoFn) => strip.segs.forEach((s) => gilt.push(geoFn(s.L).applyMatrix4(wallMatrix(strip, s.a0 + s.L / 2, 0, 0))));
-  along((L) => new THREE.BoxGeometry(L + .02, .2, .05).translate(0, .1, .025));
-  along((L) => new THREE.BoxGeometry(L + .02, .06, .05).translate(0, .95, .025));
-  along((L) => new THREE.BoxGeometry(L + .02, .32, .16).translate(0, h - .16, .08));
-  along((L) => new THREE.BoxGeometry(L + .02, .07, .26).translate(0, h - .035, .13));
-  along((L) => new THREE.BoxGeometry(L + .02, .05, .08).translate(0, h - .42, .04));
-  for (let a = 1.3; a < strip.P - .6; a += 2.5) {
-    if (isBlocked(a - .2, a + .2)) continue;
-    if (strip.rect) { const s = strip.segAt(a); if (a - s.a0 < .4 || s.a0 + s.L - a < .4) continue; }
-    gilt.push(new THREE.BoxGeometry(.3, h - .85, .05).translate(0, .2 + (h - .85) / 2, .03).applyMatrix4(wallMatrix(strip, a, 0, 0)));
-    gilt.push(new THREE.BoxGeometry(.42, .16, .09).translate(0, h - .55, .045).applyMatrix4(wallMatrix(strip, a, 0, 0)));
-  }
-  for (const a of doors) {
-    const m = wallMatrix(strip, a, 0, 0);
-    gilt.push(box(.14, dh, .09, -dw / 2 - .07, dh / 2, .045).applyMatrix4(m), box(.14, dh, .09, dw / 2 + .07, dh / 2, .045).applyMatrix4(m),
-      box(dw + .28, .16, .09, 0, dh + .08, .045).applyMatrix4(m), box(dw + .6, .1, .16, 0, dh + .22, .08).applyMatrix4(m),
-      box(dw * .36, dh * .36, .012, -dw * .22, dh * .7, .028).applyMatrix4(m), box(dw * .36, dh * .36, .012, dw * .22, dh * .7, .028).applyMatrix4(m),
-      box(dw * .36, dh * .36, .012, -dw * .22, dh * .27, .028).applyMatrix4(m), box(dw * .36, dh * .36, .012, dw * .22, dh * .27, .028).applyMatrix4(m));
-    const door = new THREE.Mesh(new THREE.BoxGeometry(dw, dh, .04).translate(0, dh / 2, .02).applyMatrix4(m), C.door); group.add(door);
-  }
-  if (room.shape === 'rect') {
-    for (let x = -w / 2 + 1.8; x < w / 2 - .5; x += 1.8) gilt.push(box(.07, .05, d - .4, x, h - .03, 0));
-    for (let z = -d / 2 + 1.8; z < d / 2 - .5; z += 1.8) gilt.push(box(w - .4, .05, .07, 0, h - .03, z));
-  } else {
-    for (const k of [.45, .7, .9]) gilt.push(new THREE.TorusGeometry(1, .012, 6, 96).applyMatrix4(mat4(0, h - .02, 0, H, 0, 0, w / 2 * k, d / 2 * k, 1)));
-  }
-  if (!room.chandeliers || !room.chandeliers.length) gilt.push(tor(.6, .05, 0, h - .03, 0, H), sph(.25, 0, h - .05, 0, 1, .3, 1));
-  if (room.ribs) for (let x = -w / 2 + 2; x < w / 2; x += 2.6) gilt.push(new THREE.TorusGeometry(d / 2 - .05, .07, 6, 32, Math.PI).applyMatrix4(mat4(x, h - d / 2 + .02, 0, 0, H, 0)));
-  if (room.columns) {
-    const zc = d / 2 - 1.1;
-    for (let x = -w / 2 + 2.2; x < w / 2 - 1; x += 3.4) for (const z of [-zc, zc]) {
-      gilt.push(cyl(.3, .34, h - .9, x, (h - .9) / 2 + .35, z, 0, 0, 0, 20), box(.82, .35, .82, x, .175, z), box(.86, .3, .86, x, h - .4, z), box(.72, .2, .72, x, h - .65, z));
-    }
-  }
-  // Carpet with a gilt border.
-  if (room.carpet) {
-    const cw = room.shape === 'rect' ? w * .74 : w * .62, cd = room.shape === 'rect' ? d * .62 : d * .62;
-    const cm = new THREE.Mesh(room.shape === 'rect' ? new THREE.BoxGeometry(cw, .012, cd) : new THREE.CylinderGeometry(1, 1, .012, 64).scale(cw / 2, 1, cd / 2), mat(room.carpet, .95));
-    cm.position.y = .006; group.add(cm);
-    if (room.shape === 'rect') gilt.push(box(cw, .014, .1, 0, .007, cd / 2 - .15), box(cw, .014, .1, 0, .007, -cd / 2 + .15), box(.1, .014, cd, cw / 2 - .15, .007, 0), box(.1, .014, cd, -cw / 2 + .15, .007, 0));
-    else gilt.push(new THREE.TorusGeometry(1, .01, 4, 64).applyMatrix4(mat4(0, .013, 0, H, 0, 0, cw / 2 - .15, cd / 2 - .15, 1)));
-  }
-  group.add(new THREE.Mesh(merge(gilt), gold));
-
-  // Chandeliers, each with a warm light.
-  for (const [cx, cz] of room.chandeliers || []) {
-    const grand = h > 5 && CHAND_GRAND;
-    const parts = grand ? CHAND_GRAND : CHAND_SMALL;
-    if (parts) {
-      const sc = grand ? (room.id === 'east_room' ? 2.1 : 1.6) : 1.25;
-      for (const [m, g] of parts) { const mesh = new THREE.Mesh(g, m); mesh.position.set(cx, h - .02, cz); mesh.scale.setScalar(sc); group.add(mesh); }
-    } else {
-      for (const [g, m] of [[CHAND.gilt, gold], [CHAND.bulbs, bulbMat]]) { const mesh = new THREE.Mesh(g, m); mesh.position.set(cx, h - .9, cz); group.add(mesh); }
-    }
-  }
-  const lamp = new THREE.PointLight(0xffdfb0, h * h * 2.4, 0, 2); lamp.position.set(0, h - 1.2, 0); group.add(lamp);
-  const fill = new THREE.PointLight(0xfff0d8, h * h * 1.4, 0, 2); fill.position.set(room.shape === 'rect' && w > d ? -w / 4 : 0, h * .6, room.shape === 'rect' && d > w ? d / 4 : 0); group.add(fill);
-
-  // Furniture.
-  const occupied = [];
-  if (room.table) {
-    const tl = Math.min(d - 4.5, 8), tw = 1.5;
-    group.add(new THREE.Mesh(merge([box(tw, .07, tl, 0, .76, 0), ...[-1, 1].flatMap((sx) => [-1, 1].map((sz) => cyl(.05, .04, .74, sx * (tw / 2 - .15), .37, sz * (tl / 2 - .2))))]), gold));
-    group.add(new THREE.Mesh(box(tw - .1, .005, tl - .2, 0, .8, 0), mat(0xf4f0e6, .7)));
-    room.chairs = [];
-    for (let z = -tl / 2 + .55; z <= tl / 2 - .5; z += .82) for (const sx of [-1, 1]) room.chairs.push([sx * (tw / 2 + .45), z, sx > 0 ? -H : H]);
-    const chairParts = MD.dining_chair_02 ? mp('dining_chair_02') : null;
-    if (chairParts) {
-      for (const [, g] of chairParts) {
-        const im = new THREE.InstancedMesh(g, gold, room.chairs.length);
-        room.chairs.forEach(([x, z, ry], i) => im.setMatrixAt(i, mat4(x, 0, z, 0, ry, 0))); group.add(im);
-      }
-    } else {
-      const cg = [], cs = [];
-      for (const [x, z, ry] of room.chairs) { const m = mat4(x, 0, z, 0, ry, 0); cg.push(...[box(.46, .05, .46, 0, .46, 0), box(.46, .7, .05, 0, .82, -.22)].map((g) => g.applyMatrix4(m))); cs.push(box(.4, .04, .4, 0, .5, .01).applyMatrix4(m)); }
-      group.add(new THREE.Mesh(merge(cg), gold), new THREE.Mesh(merge(cs), C.seat));
-    }
-    occupied.push({ x: 0, z: 0, r: 0, rect: [tw / 2 + 1.0, tl / 2 + .6] });
-  }
-  if (room.oval) {
-    const rug = new THREE.Mesh(new THREE.CircleGeometry(1, 96), new THREE.MeshStandardMaterial({ map: canvasTex(512, 512, sunburstImg), roughness: .95 }));
-    rug.rotation.x = -H; rug.scale.set(w * .36, d * .36, 1); rug.position.y = .008; group.add(rug);
-    const dz = -d / 2 + 1.5;
-    group.add(new THREE.Mesh(merge([box(1.85, .74, .9, 0, .37, dz), box(.7, .5, .02, 0, .36, dz + .45)]), C.desk), new THREE.Mesh(merge([box(1.97, .05, 1.0, 0, .765, dz), box(1.9, .05, .04, 0, .05, dz + .46), box(.06, .72, .06, -.9, .37, dz + .46), box(.06, .72, .06, .9, .37, dz + .46), box(.5, .36, .025, -.58, .38, dz + .455), box(.5, .36, .025, .58, .38, dz + .455), tor(.15, .015, 0, .4, dz + .465)]), gold));
-    group.add(new THREE.Mesh(merge([box(.7, .45, 2.1, -1.4, .225, 1.1), box(.2, .4, 2.1, -1.8, .55, 1.1), box(.7, .45, 2.1, 1.4, .225, 1.1), box(.2, .4, 2.1, 1.8, .55, 1.1)]), mat(0xe8dcc0, .9)));
-    group.add(new THREE.Mesh(merge([box(1.1, .05, .7, 0, .42, 1.1), cyl(.04, .04, .4, 0, .2, 1.1), tor(.55, .02, 0, h - .3, 0, H, 0, 0), sph(.32, 0, h - .05, 0, 1, .25, 1)]), gold));
-    occupied.push({ x: 0, z: dz, r: 0, rect: [1.4, .9] }, { x: 0, z: 1.1, r: 0, rect: [2.3, 1.4] });
-  }
-
-  // Console tables with a gilt mirror above and a marble bust on top.
-  const decorN = room.id === 'ground_corridor' || room.oval && room.id === 'oval_office' ? 0 : (strip.P > 40 ? 3 : strip.P > 26 ? 2 : 1);
-  const consoleParts = MD.ClassicConsole_01 ? mp('ClassicConsole_01') : null;
-  if (consoleParts && decorN) {
-    const mirrorParts = MD.ornate_mirror_01 || [], bustParts = mp('marble_bust_01', 0, .95, -.05, 0, 1.15);
-    const ms = [];
-    for (let k = 0; k < decorN; k++) {
-      let a = 0, tries = 0;
-      do { a = strip.P * (k + rr(.25, .75)) / decorN; tries++; }
-      while (tries < 60 && (isBlocked(a - .9, a + .9) || (strip.rect && (() => { const sg = strip.segAt(a); return a - sg.a0 < 1 || sg.a0 + sg.L - a < 1; })())));
-      if (tries >= 60) continue;
-      blocked.push([a - .95, a + .95]);
-      const m = wallMatrix(strip, a, 0, .36);
-      ms.push(m);
-      const pt = strip.at(a); occupied.push({ x: pt.x + pt.s.nx * .4, z: pt.z + pt.s.nz * .4, r: .85 });
-      for (const [mt, g] of mirrorParts) { const mesh = new THREE.Mesh(g, mt); mesh.applyMatrix4(wallMatrix(strip, a, Math.min(h - 1.1, 2.15), .03, 2.3, 2.3, 2.3)); group.add(mesh); }
-    }
-    for (const [mt, g] of combine(consoleParts, bustParts)) {
-      if (!ms.length) break;
-      const im = new THREE.InstancedMesh(g, mt, ms.length); ms.forEach((m, i) => im.setMatrixAt(i, m)); group.add(im);
-    }
-  }
-
-  // Empty frames: one per wordless photograph, hung salon-style.
-  const nFrames = ri.wordless || 0;
-  const band0 = 1.12, band1 = h - .62, bandH = band1 - band0;
-  const avail = strip.P * bandH * .52;
-  const s = Math.max(.24, Math.min(1.05, Math.sqrt(avail / Math.max(1, nFrames))));
-  const frameMs = []; let fi = 0;
-  const rows = Math.max(1, Math.floor(bandH / (s * 1.18)));
-  outer: for (let pass = 0; pass < 3 && fi < nFrames; pass++) {
-    for (let r = 0; r < rows && fi < nFrames; r++) {
-      let a = rr(.1, .5) + pass * s * .5;
-      const yc = band0 + (r + .5) * bandH / rows;
-      while (a < strip.P - .2 && fi < nFrames) {
-        const fw = s * rr(.62, 1.35), fh = Math.min(bandH / rows * .86, s * rr(.62, 1.35));
-        if (pass > 0 && rand() < .5) { a += fw + .2; continue; }
-        let ok = !isBlocked(a, a + fw);
-        if (ok && strip.rect) { const sg = strip.segAt(a); ok = a + fw < sg.a0 + sg.L - .1 && a > sg.a0 + .1; if (!ok) { a = sg.a0 + sg.L + .12; continue; } }
-        if (ok) { frameMs.push(wallMatrix(strip, a + fw / 2, yc + rr(-.04, .04), .07 + pass * .03, fw, fh, 1)); fi++; }
-        a += fw + s * rr(.12, .3);
-      }
-    }
-  }
-  for (const [m, g] of FRAME_PARTS) { if (!frameMs.length) break; const im = new THREE.InstancedMesh(g, m, frameMs.length); frameMs.forEach((x, i) => im.setMatrixAt(i, x)); group.add(im); }
-  room.framesShown = fi;
-
-  // Placement on the floor (room-local), avoiding the camera's path, furniture and each other.
-  const cam = cameraFor(room); room.cam = cam;
-  const inside = (x, z, r) => room.shape === 'rect' ? Math.abs(x) < w / 2 - .45 - r && Math.abs(z) < d / 2 - .45 - r
-    : (x * x) / Math.pow(w / 2 - .5 - r, 2) + (z * z) / Math.pow(d / 2 - .5 - r, 2) < 1;
-  const segDist = (px, pz, a, b) => { const vx = b[0] - a[0], vz = b[2] - a[2]; const t = Math.max(0, Math.min(1, ((px - a[0]) * vx + (pz - a[2]) * vz) / (vx * vx + vz * vz || 1))); return Math.hypot(px - (a[0] + vx * t), pz - (a[2] + vz * t)); };
-  const placed = [];
-  function spot(r, tries = 220) {
-    for (let i = 0; i < tries; i++) {
-      const x = room.shape === 'rect' ? rr(-w / 2, w / 2) : rr(-w / 2, w / 2), z = room.shape === 'rect' ? rr(-d / 2, d / 2) : rr(-d / 2, d / 2);
-      if (!inside(x, z, r)) continue;
-      if (segDist(x, z, cam.from, cam.end) < 1.6 + r) continue;
-      if (occupied.some((o) => (o.rect ? Math.abs(x - o.x) < o.rect[0] + r && Math.abs(z - o.z) < o.rect[1] + r : Math.hypot(x - o.x, z - o.z) < o.r + r))) continue;
-      if (placed.some((p) => Math.hypot(p.x - x, p.z - z) < p.r + r + .05)) continue;
-      const p = { x, z, r }; placed.push(p); return p;
-    }
-    return null;
-  }
-
-  // Objects.
-  const buckets = new Map();
-  const wallObjs = [];
-  for (const [cat, n] of Object.entries(ri.objects || {})) {
-    const pr = PROTO[cat]; if (!pr) continue;
-    for (let k = 0; k < n; k++) {
-      let m;
-      const v = Math.floor(rand() * pr.variants.length);
-      if (pr.lean) {
-        let a, tries = 0; do { a = rr(0, strip.P); tries++; } while ((isBlocked(a - .5, a + .5) || wallObjs.some((b) => Math.abs(b - a) < .9)) && tries < 80);
-        wallObjs.push(a);
-        m = wallMatrix(strip, a, 0, .34).multiply(mat4(0, 0, 0, -.16, 0, 0));
-      } else if (pr.wall !== undefined) {
-        let a, tries = 0; do { a = rr(0, strip.P); tries++; } while ((isBlocked(a - .4, a + .4) || wallObjs.some((b) => Math.abs(b - a) < .7)) && tries < 80);
-        wallObjs.push(a);
-        const y = pr.wall < 0 ? h + pr.wall : pr.wall;
-        m = wallMatrix(strip, a, y + rr(-.1, .1), .16);
-      } else {
-        const p = spot(pr.r); if (!p) continue;
-        m = mat4(p.x, 0, p.z, 0, rr(0, Math.PI * 2), 0);
-      }
-      const key = `${cat}#${v}`;
-      if (!buckets.has(key)) buckets.set(key, []); buckets.get(key).push(m);
-    }
-  }
-  let objCount = 0;
-  for (const [key, ms] of buckets) {
-    const [cat, v] = key.split('#');
-    for (const [material, geo] of PROTO[cat].variants[+v]) {
-      const im = new THREE.InstancedMesh(geo, material, ms.length); ms.forEach((m, i) => im.setMatrixAt(i, m)); im.instanceMatrix.needsUpdate = true; group.add(im);
-    }
-    objCount += ms.length;
-  }
-  room.objectsShown = objCount;
-
-  // Figures.
-  const figs = { stand: [], stand2: [], sit: [] };
-  let nF = room.figures || 0;
-  if (room.chairs) {
-    const seats = [...room.chairs].sort(() => rand() - .5).slice(0, Math.min(nF, Math.ceil(room.chairs.length * .6)));
-    for (const [x, z, ry] of seats) figs.sit.push(mat4(x, .02, z, 0, ry, 0)); nF -= seats.length;
-  }
-  for (let k = 0; k < nF; k++) {
-    const p = spot(.34, 400); if (!p) continue;
-    const sc = rr(.9, 1.08);
-    const look = Math.atan2(cam.from[0] - p.x, cam.from[2] - p.z) + rr(-1.2, 1.2);
-    (rand() < .35 ? figs.stand2 : figs.stand).push(mat4(p.x, 0, p.z, 0, rand() < .25 ? rr(0, 6.28) : look, 0, sc, sc, sc));
-  }
-  for (const [kind, ms] of Object.entries(figs)) {
-    if (!ms.length) continue;
-    const im = new THREE.InstancedMesh(FIG[kind], figureMat, ms.length); ms.forEach((m, i) => im.setMatrixAt(i, m)); im.instanceMatrix.needsUpdate = true; group.add(im);
-  }
-  room.figuresShown = figs.stand.length + figs.stand2.length + figs.sit.length;
-  room.group = group; room.inv = ri;
+// Walkable floor regions: shape + height at a point.
+const REGIONS = [];
+for (const s of SPACES) {
+  if (s.stairs) continue;
+  REGIONS.push({ space: s, inside: s.shape === 'rect' ? (x, z) => x >= s.x0 && x <= s.x1 && z >= s.z0 && z <= s.z1 : (x, z) => ((x - s.cx) / s.rx) ** 2 + ((z - s.cz) / s.rz) ** 2 <= 1, y: () => s.y });
+}
+{
+  const s = SP.stair_hall;
+  const R = (x0, x1, z0, z1, y) => REGIONS.push({ space: s, inside: (x, z) => x >= x0 && x <= x1 && z >= z0 && z <= z1, y });
+  R(STAIR.x1, s.x1, STAIR.zTop, s.z1, () => 0);
+  R(STAIR.x0, STAIR.x1, STAIR.zBot, s.z1, () => 0);
+  R(STAIR.x0, STAIR.x1, STAIR.zTop, STAIR.zBot, (x, z) => stairY(z));
+  R(s.x0, s.x1, s.z0, STAIR.zTop, () => ST);
 }
 
-// Viewpoint: stand near one end of the long axis, look toward the far end; drift slowly inward.
-function cameraFor(room) {
-  const { w, d, h } = room; const eye = 1.62;
-  if (room.id === 'oval_office') return { from: [w / 2 - 1.2, eye, .9], to: [-w / 2 + 1.5, 1.0, -d / 2 + 1.2], end: [w / 2 - 2.2, eye, .5] };
-  if (room.id === 'state_dining_room') return { from: [-w / 2 + 1.2, eye + .3, d / 2 - 1.3], to: [w / 4, 1.0, -d / 2 + 1], end: [-w / 2 + 1.8, eye + .3, d / 2 - 2.4] };
-  if (w >= d) { const x0 = -w / 2 + 1.1; return { from: [x0, eye, d * .18], to: [w / 2, 1.3, -d * .12], end: [x0 + Math.min(w * .3, 5), eye, d * .1] }; }
-  const z0 = d / 2 - 1.1; return { from: [w * .18, eye, z0], to: [-w * .12, 1.3, -d / 2], end: [w * .1, eye, z0 - Math.min(d * .3, 6)] };
+// Collision: wall segments (2D) with a height range, plus circles and boxes for furniture.
+const SEGS = [], CIRCLES = [];
+const addSeg = (x1, z1, x2, z2, y0, y1) => SEGS.push({ x1, z1, x2, z2, y0, y1 });
+const addBox = (x0, z0, x1, z1, y0, y1) => { addSeg(x0, z0, x1, z0, y0, y1); addSeg(x1, z0, x1, z1, y0, y1); addSeg(x1, z1, x0, z1, y0, y1); addSeg(x0, z1, x0, z0, y0, y1); };
+addSeg(STAIR.x1, STAIR.zTop, STAIR.x1, STAIR.zBot, 0, ST + 1.1);
+addSeg(STAIR.x0, STAIR.zTop, STAIR.x0, SP.stair_hall.z1, 0, ST + 1.1);
+addSeg(STAIR.x1, STAIR.zTop, SP.stair_hall.x1, STAIR.zTop, 0, ST + 1.1);
+
+// ---------------------------------------------------------------- wall strip (perimeter by arc length, world xz)
+function makeStrip(s) {
+  const pts = [];
+  if (s.shape === 'rect') pts.push([s.x0, s.z0], [s.x1, s.z0], [s.x1, s.z1], [s.x0, s.z1]);
+  else { const N = 96; for (let i = 0; i < N; i++) { const t = i / N * Math.PI * 2; pts.push([s.cx + Math.cos(t) * s.rx, s.cz + Math.sin(t) * s.rz]); } }
+  const cx = s.shape === 'rect' ? (s.x0 + s.x1) / 2 : s.cx, cz = s.shape === 'rect' ? (s.z0 + s.z1) / 2 : s.cz;
+  const segs = []; let acc = 0;
+  for (let i = 0; i < pts.length; i++) {
+    const [x1, z1] = pts[i], [x2, z2] = pts[(i + 1) % pts.length];
+    const L = Math.hypot(x2 - x1, z2 - z1); const tx = (x2 - x1) / L, tz = (z2 - z1) / L;
+    let nx = -tz, nz = tx; const mx = (x1 + x2) / 2, mz = (z1 + z2) / 2;
+    if (nx * (cx - mx) + nz * (cz - mz) < 0) { nx = -nx; nz = -nz; }
+    segs.push({ i, a0: acc, L, x1, z1, x2, z2, tx, tz, nx, nz }); acc += L;
+  }
+  const P = acc;
+  const segAt = (a) => { a = ((a % P) + P) % P; for (const sg of segs) if (a >= sg.a0 && a < sg.a0 + sg.L) return sg; return segs[segs.length - 1]; };
+  const at = (a) => { a = ((a % P) + P) % P; const sg = segAt(a); const u = a - sg.a0; return { x: sg.x1 + sg.tx * u, z: sg.z1 + sg.tz * u, s: sg }; };
+  // Arc position of the strip point nearest (x, z).
+  const project = (x, z) => { let best = { d: 1e9, a: 0 }; for (const sg of segs) { const t = Math.max(0, Math.min(sg.L, (x - sg.x1) * sg.tx + (z - sg.z1) * sg.tz)); const d = Math.hypot(sg.x1 + sg.tx * t - x, sg.z1 + sg.tz * t - z); if (d < best.d) best = { d, a: sg.a0 + t }; } return best; };
+  return { segs, P, rect: s.shape === 'rect', segAt, at, project, cx, cz };
+}
+function wallMatrix(strip, a, y, out, sx = 1, sy = 1, sz = 1) {
+  const p = strip.at(a); const sg = p.s;
+  const basis = new THREE.Matrix4().makeBasis(new THREE.Vector3(sg.tx, 0, sg.tz), new THREE.Vector3(0, 1, 0), new THREE.Vector3(sg.nx, 0, sg.nz));
+  return new THREE.Matrix4().makeTranslation(p.x + sg.nx * out, y, p.z + sg.nz * out).multiply(basis).multiply(new THREE.Matrix4().makeScale(sx, sy, sz));
 }
 
-// ---------------------------------------------------------------- build all rooms, a few per frame so the page stays responsive
-for (let i = 0; i < ROOMS.length; i++) {
-  buildRoom(ROOMS[i]);
-  begin.textContent = `Gilding the rooms… ${i + 1}/${ROOMS.length}`;
-  await new Promise((r) => requestAnimationFrame(r));
+// ---------------------------------------------------------------- picking
+const PICK = [];
+const MODEL_CREDIT = (ids) => ids && ids.length ? ids.map((id) => ({ id, url: `https://polyhaven.com/a/${id}` })) : null;
+function instanced(group, geo, material, mats, metas) {
+  if (!mats.length) return null;
+  const im = new THREE.InstancedMesh(geo, material, mats.length);
+  mats.forEach((m, i) => im.setMatrixAt(i, m)); im.instanceMatrix.needsUpdate = true; im.computeBoundingSphere();
+  if (metas) { im.userData.metas = metas; PICK.push(im); }
+  group.add(im); return im;
 }
 
-// ---------------------------------------------------------------- placard text
 const LABEL = {
   storage_box: ["banker's box", "banker's boxes"], shipping_box: ['shipping box', 'shipping boxes'], fire_extinguisher: ['fire extinguisher', 'fire extinguishers'],
   exit_sign: ['exit sign', 'exit signs'], warning_sign: ['warning sign', 'warning signs'], keep_calm_poster: ['Keep Calm poster', 'Keep Calm posters'],
@@ -740,84 +596,1109 @@ const LABEL = {
   bed_linens: ['stack of linens', 'stacks of linens'], skincare: ['set of skincare bottles', 'sets of skincare bottles'], laundry: ['detergent jug', 'detergent jugs'],
   potted_plant: ['potted plant', 'potted plants'], telephone: ['desk phone', 'desk phones'],
 };
-const pad = (n, k = 5) => String(n).padStart(k, '0');
-function showPlacard(room) {
-  const ri = room.inv;
-  const codes = (ri.placards || []).filter((c, i, a) => a.indexOf(c) === i);
-  $('p-code').textContent = codes.length ? codes[0] : '—';
-  $('p-title').textContent = room.name;
-  $('p-floor').textContent = room.floor;
-  $('p-efta').textContent = `EFTA${pad(ri.efta_start, 8)}–${pad(ri.efta_end, 8).slice(-5)} · ${ri.photos}` + (codes.length > 1 ? ` · placards ${codes.join(', ')}` : '');
-  $('p-frames').textContent = room.framesShown === ri.wordless ? `${ri.wordless} wordless photographs` : `${room.framesShown} of ${ri.wordless} wordless photographs`;
-  const items = Object.entries(ri.objects || {}).filter(([k]) => PROTO[k]);
-  const list = items.slice(0, 5).map(([k, n]) => `${n} ${LABEL[k][n === 1 ? 0 : 1]}`);
-  $('p-inv').textContent = items.length ? list.join(', ') + (items.length > 5 ? `, and ${items.length - 5} more kinds` : '') : 'nothing legible';
-  $('p-fig').textContent = `${room.figuresShown}, redacted`;
+const FURNISHING = { console: ['Console table', ['ClassicConsole_01', 'marble_bust_01']], mirror: ['Gilt mirror', ['ornate_mirror_01']], chandelier: ['Chandelier', ['Chandelier_01', 'Chandelier_03']],
+  chair: ['Dining chair, gilded', ['dining_chair_02']], sofa: ['Sofa', ['Sofa_01']], armchair: ['Armchair', ['ArmChair_01']], clock: ['Grandfather clock', ['vintage_grandfather_clock_01']], mantel: ['Mantel clock', ['mantel_clock_01']], desk: ['Desk', []], table: ['Dining table', []] };
+
+// ---------------------------------------------------------------- build
+const TOUR = ['entrance_hall', 'cross_hall', 'east_room', 'east_wing', 'green_room', 'blue_room', 'red_room', 'state_dining_room', 'ground_corridor', 'library', 'vermeil_room', 'vault', 'china_room', 'diplomatic_reception_room', 'map_room', 'west_colonnade', 'oval_office', 'situation_room'];
+const area = (s) => (s.shape === 'oval' ? Math.PI * s.rx * s.rz : (s.x1 - s.x0) * (s.z1 - s.z0));
+const perimeter = (s) => s.shape === 'oval' ? Math.PI * (3 * (s.rx + s.rz) - Math.sqrt((3 * s.rx + s.rz) * (s.rx + 3 * s.rz))) : 2 * ((s.x1 - s.x0) + (s.z1 - s.z0));
+{ // Black figures: one per 1,000 redaction fragments, shared out by floor area (largest remainder).
+  const rooms = SPACES.filter((s) => s.place);
+  const total = Math.round((inv.redaction_fragments || 0) / 1000);
+  const A = rooms.reduce((s, r) => s + area(r), 0);
+  const raw = rooms.map((r) => total * area(r) / A);
+  const base = raw.map(Math.floor); const left = total - base.reduce((a, b) => a + b, 0);
+  raw.map((v, i) => [v - base[i], i]).sort((a, b) => b[0] - a[0]).slice(0, left).forEach(([, i]) => base[i]++);
+  rooms.forEach((r, i) => (r.figures = base[i]));
+  inv.figureTotal = total;
+}
+// Pools: every object by category, every photograph by the room its description matches.
+const POOL = {};
+for (const [cat, recs] of Object.entries(inv.objects)) POOL[cat] = recs.map((r) => r.slice()).sort((a, b) => a[2] - b[2]);
+const take = (cat) => (POOL[cat] && POOL[cat].length ? POOL[cat].shift() : null);
+const FRAMES_OF = {};
+{
+  const halls = SPACES.filter((s) => s.place === 'hall');
+  const P = halls.reduce((a, s) => a + perimeter(s), 0);
+  for (const [place, list] of Object.entries(inv.frames)) {
+    const sorted = list.slice().sort((a, b) => a[3] - b[3]);
+    if (place === 'hall') {
+      let i = 0;
+      halls.forEach((s, k) => { const n = k === halls.length - 1 ? sorted.length - i : Math.round(sorted.length * perimeter(s) / P); FRAMES_OF[s.id] = sorted.slice(i, i + n); i += n; });
+    } else {
+      const sp = SPACES.find((s) => s.place === place) || SP.east_wing;
+      (FRAMES_OF[sp.id] ||= []).push(...sorted);
+    }
+  }
+}
+const EVIDENCE_OF = {};
+for (const e of inv.evidence || []) (EVIDENCE_OF[e[2]] ||= []).push(e);
+
+// Normalised model parts, cached, and their sizes.
+const PARTC = {};
+const part = (id) => PARTC[id] || (PARTC[id] = mp(id));
+const dims = (id) => { const b = MD[id] ? partsBox(part(id)) : null; return b ? { w: b.max.x - b.min.x, d: b.max.z - b.min.z, h: b.max.y } : { w: 1, d: 1, h: 1 }; };
+// Evidence bag: clear plastic, red seal, white tag, a dark shape inside. Base at y=0, lying flat.
+const bagMat = new THREE.MeshStandardMaterial({ color: 0xdfe9ee, roughness: .15, metalness: 0, transparent: true, opacity: .45, depthWrite: false });
+const BAG = {
+  shell: [bagMat, merge([box(.34, .045, .44, 0, .0225, 0)])],
+  seal: [mat(0xc8202a, .5), merge([box(.35, .047, .05, 0, .0235, -.19)])],
+  tag: [mat(0xf6f3ea, .7), merge([box(.12, .002, .08, .09, .047, .1), box(.12, .002, .006, .09, .048, .075)])],
+  inside: [mat(0x2a2622, .8), merge([box(.2, .025, .26, -.02, .016, .01)])],
+};
+// Evidence that is not described or depicted: an opaque black bag.
+const BLACKBAG = mat(0x0b0b0c, .55);
+const opaque = (label) => /not depicted|not reproduced|not described/.test(label);
+function buildSpace(s) {
+  const group = new THREE.Group(); group.position.y = s.y; scene.add(group); s.group = group;
+  const strip = makeStrip(s); s.strip = strip;
+  const h = s.h;
+  const W = WALL[s.wall];
+  const wallMat = surfMat(W.surf, W.color);
+  const floorMat = { marble: () => surfMat('marble_tiles', 0xffffff, { envMapIntensity: .8 }), tile: () => surfMat('large_floor_tiles_02', 0xffffff, { envMapIntensity: .7 }),
+    concrete: () => surfMat('concrete_floor_worn_001', 0xe8e4dc), carpet: () => surfMat('poly_wool_herringbone', s.carpetColor || 0x6b2a2a) }[s.floorS]?.() || surfMat('herringbone_parquet', 0xffffff, { envMapIntensity: .7 });
+  const ceilMat = surfMat('painted_plaster_wall', s.oval ? 0xf6ecd3 : 0xfbf8f0);
+  const myDoors = DOORS.filter((d) => Math.abs(d.y - s.y) < .5 || (s.stairs && (d.y < .5 || Math.abs(d.y - ST) < .5)))
+    .map((d) => ({ ...d, ...strip.project(d.x, d.z) })).filter((d) => d.d < .15);
+  s.doors = myDoors;
+  const blocked = myDoors.map((d) => [d.a - d.w / 2 - .4, d.a + d.w / 2 + .4]);
+  const isBlocked = (a0, a1) => blocked.some(([b0, b1]) => a1 > b0 && a0 < b1);
+
+  // Floor and ceiling.
+  const tile = { marble: 2.4, tile: 2.0, concrete: 3.0, carpet: 1.2 }[s.floorS] || 1.8;
+  const flatGeo = (y, up) => {
+    let g;
+    if (s.shape === 'rect') { g = new THREE.PlaneGeometry(s.x1 - s.x0, s.z1 - s.z0); g.rotateX(up ? -H : H); g.translate((s.x0 + s.x1) / 2, y, (s.z0 + s.z1) / 2); }
+    else { g = new THREE.CircleGeometry(1, 96); g.rotateX(up ? -H : H); g.scale(s.rx, 1, s.rz); g.translate(s.cx, y, s.cz); }
+    const p = g.attributes.position, uv = g.attributes.uv; for (let i = 0; i < p.count; i++) uv.setXY(i, p.getX(i) / tile, p.getZ(i) / tile);
+    return g;
+  };
+  if (!s.stairs) group.add(new THREE.Mesh(flatGeo(0, true), floorMat));
+  else {
+    const g = (x0, x1, z0, z1, y) => { const pg = new THREE.PlaneGeometry(x1 - x0, z1 - z0); pg.rotateX(-H); pg.translate((x0 + x1) / 2, y, (z0 + z1) / 2); const p = pg.attributes.position, uv = pg.attributes.uv; for (let i = 0; i < p.count; i++) uv.setXY(i, p.getX(i) / tile, p.getZ(i) / tile); return pg; };
+    group.add(new THREE.Mesh(merge([g(s.x0, s.x1, s.z0, s.z1, 0), g(s.x0, s.x1, s.z0, STAIR.zTop, ST + .001)]), floorMat));
+    group.add(new THREE.Mesh(box(s.x1 - s.x0, .3, STAIR.zTop - s.z0, (s.x0 + s.x1) / 2, ST - .15, (s.z0 + STAIR.zTop) / 2), C.stone));
+  }
+  const ceil = new THREE.Mesh(flatGeo(h, false), ceilMat); group.add(ceil);
+
+  // Walls with door openings; collision segments follow the same cuts.
+  const wallGeos = [];
+  const quad = (sg, u0, u1, y0, y1) => {
+    if (u1 - u0 < .01 || y1 - y0 < .01) return;
+    const x0 = sg.x1 + sg.tx * u0, z0 = sg.z1 + sg.tz * u0, x1 = sg.x1 + sg.tx * u1, z1 = sg.z1 + sg.tz * u1;
+    const g = new THREE.BufferGeometry();
+    const P = [x0, y0, z0, x1, y0, z1, x1, y1, z1, x0, y1, z0];
+    const a0 = (sg.a0 + u0) / 1.6, a1 = (sg.a0 + u1) / 1.6;
+    const UV = [a0, y0 / 1.6, a1, y0 / 1.6, a1, y1 / 1.6, a0, y1 / 1.6];
+    const N = Array(4).fill([sg.nx, 0, sg.nz]).flat();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(UV, 2)); g.setAttribute('normal', new THREE.Float32BufferAttribute(N, 3));
+    // Wind so the face points into the room.
+    const cross = (x1 - x0) * sg.nz - (z1 - z0) * sg.nx;
+    g.setIndex(cross > 0 ? [0, 1, 2, 0, 2, 3] : [0, 2, 1, 0, 3, 2]);
+    wallGeos.push(g);
+  };
+  const railGeos = [];
+  for (const sg of strip.segs) {
+    const open = s.open && s.open.includes(sg.i);
+    const cuts = [];
+    for (const d of myDoors) { const u = d.a - sg.a0; if (u > -d.w / 2 && u < sg.L + d.w / 2) cuts.push([Math.max(0, u - d.w / 2), Math.min(sg.L, u + d.w / 2), d.h + (s.stairs ? (Math.abs(d.y - ST) < .5 ? ST : 0) : 0), d]); }
+    cuts.sort((p, q) => p[0] - q[0]);
+    if (open) { // open side of the colonnade: a low balustrade
+      addSeg(sg.x1, sg.z1, sg.x2, sg.z2, s.y, s.y + 1.2);
+      railGeos.push(box(sg.L, .1, .25, 0, .95, 0).applyMatrix4(wallMatrix(strip, sg.a0 + sg.L / 2, 0, .12)), box(sg.L, .12, .3, 0, .06, 0).applyMatrix4(wallMatrix(strip, sg.a0 + sg.L / 2, 0, .12)));
+      for (let u = .4; u < sg.L; u += .32) railGeos.push(cyl(.045, .05, .82, 0, .5, 0).applyMatrix4(wallMatrix(strip, sg.a0 + u, 0, .12)));
+      continue;
+    }
+    let u = 0;
+    for (const [c0, c1, top, d] of cuts) {
+      quad(sg, u, c0, 0, h); addSeg(sg.x1 + sg.tx * u, sg.z1 + sg.tz * u, sg.x1 + sg.tx * c0, sg.z1 + sg.tz * c0, s.y, s.y + h);
+      const bottom = s.stairs && Math.abs(d.y - ST) < .5 ? ST : 0;
+      quad(sg, c0, c1, 0, bottom); quad(sg, c0, c1, Math.min(top, h), h);
+      if (bottom > 0) addSeg(sg.x1 + sg.tx * c0, sg.z1 + sg.tz * c0, sg.x1 + sg.tx * c1, sg.z1 + sg.tz * c1, 0, bottom - .3);
+      u = c1;
+    }
+    quad(sg, u, sg.L, 0, h); addSeg(sg.x1 + sg.tx * u, sg.z1 + sg.tz * u, sg.x2, sg.z2, s.y, s.y + h);
+  }
+  group.add(new THREE.Mesh(merge(wallGeos), wallMat));
+
+  // Gilding: baseboard, chair rail, cornice, pilasters, door architraves, ceiling work.
+  const gilt = [...railGeos];
+  const solid = (sg) => !(s.open && s.open.includes(sg.i));
+  const along = (fn) => strip.segs.forEach((sg) => { if (solid(sg)) gilt.push(fn(sg.L).applyMatrix4(wallMatrix(strip, sg.a0 + sg.L / 2, 0, 0))); });
+  const lowY = s.stairs ? [0, ST] : [0];
+  for (const y0 of lowY) {
+    for (const sg of strip.segs) {
+      if (!solid(sg)) continue;
+      // Baseboard and chair rail, broken at doors.
+      let u = 0; const cuts = myDoors.filter((d) => !s.stairs || Math.abs((d.y > 1 ? ST : 0) - y0) < .5).map((d) => [d.a - sg.a0 - d.w / 2 - .1, d.a - sg.a0 + d.w / 2 + .1]).filter(([a, b]) => b > 0 && a < sg.L).sort((p, q) => p[0] - q[0]);
+      for (const [c0, c1] of [...cuts, [sg.L, sg.L]]) {
+        const a = Math.max(0, u), b = Math.min(sg.L, c0);
+        if (b - a > .05) {
+          const m = wallMatrix(strip, sg.a0 + (a + b) / 2, y0, 0);
+          gilt.push(box(b - a, .2, .05, 0, .1, .025).applyMatrix4(m), box(b - a, .06, .05, 0, .95, .025).applyMatrix4(m));
+        }
+        u = c1;
+      }
+    }
+  }
+  along((L) => new THREE.BoxGeometry(L + .02, .32, .16).translate(0, h - .16, .08));
+  along((L) => new THREE.BoxGeometry(L + .02, .07, .26).translate(0, h - .035, .13));
+  along((L) => new THREE.BoxGeometry(L + .02, .05, .08).translate(0, h - .42, .04));
+  if (!s.stairs) for (let a = 1.3; a < strip.P - .6; a += 2.6) {
+    const sg = strip.segAt(a); if (!solid(sg) || isBlocked(a - .25, a + .25)) continue;
+    if (strip.rect && (a - sg.a0 < .4 || sg.a0 + sg.L - a < .4)) continue;
+    gilt.push(new THREE.BoxGeometry(.3, h - .85, .05).translate(0, .2 + (h - .85) / 2, .03).applyMatrix4(wallMatrix(strip, a, 0, 0)));
+    gilt.push(new THREE.BoxGeometry(.42, .16, .09).translate(0, h - .55, .045).applyMatrix4(wallMatrix(strip, a, 0, 0)));
+  }
+  for (const d of myDoors) {
+    const y0 = s.stairs && Math.abs(d.y - ST) < .5 ? ST : 0;
+    const m = wallMatrix(strip, d.a, y0, 0), dw = d.w, dh = d.h;
+    if (d.open) { // wide opening framed by columns
+      for (const sx of [-1, 1]) gilt.push(cyl(.3, .34, dh, sx * (dw / 2 + .2), dh / 2, .25), box(.8, .3, .8, sx * (dw / 2 + .2), .15, .25), box(.8, .3, .8, sx * (dw / 2 + .2), dh, .25));
+      gilt.push(box(dw + 1.2, .3, .5, 0, dh + .15, .2));
+      continue;
+    }
+    gilt.push(box(.14, dh, .32, -dw / 2 - .07, dh / 2, 0).applyMatrix4(m), box(.14, dh, .32, dw / 2 + .07, dh / 2, 0).applyMatrix4(m),
+      box(dw + .28, .16, .32, 0, dh + .08, 0).applyMatrix4(m), box(dw + .6, .1, .36, 0, dh + .22, 0).applyMatrix4(m),
+      box(dw, .02, .32, 0, .01, 0).applyMatrix4(m));
+  }
+  if (s.shape === 'rect' && !s.stairs) {
+    for (let x = s.x0 + 1.8; x < s.x1 - .5; x += 1.8) gilt.push(box(.07, .05, s.z1 - s.z0 - .4, x, h - .03, (s.z0 + s.z1) / 2));
+    for (let z = s.z0 + 1.8; z < s.z1 - .5; z += 1.8) gilt.push(box(s.x1 - s.x0 - .4, .05, .07, (s.x0 + s.x1) / 2, h - .03, z));
+  } else if (s.shape === 'oval') {
+    for (const k of [.45, .7, .9]) gilt.push(new THREE.TorusGeometry(1, .012, 6, 96).applyMatrix4(mat4(s.cx, h - .02, s.cz, H, 0, 0, s.rx * k, s.rz * k, 1)));
+  }
+  if (s.oval) gilt.push(tor(.6, .05, s.cx, h - .03, s.cz, H), sph(.25, s.cx, h - .05, s.cz, 1, .3, 1));
+  if (s.ribs) for (let x = s.x0 + 2; x < s.x1; x += 2.6) gilt.push(new THREE.TorusGeometry((s.z1 - s.z0) / 2 - .05, .07, 6, 32, Math.PI).applyMatrix4(mat4(x, h - (s.z1 - s.z0) / 2 + .02, (s.z0 + s.z1) / 2, 0, H, 0)));
+  const colAt = (x, z) => { gilt.push(cyl(.3, .34, h - .9, x, (h - .9) / 2 + .35, z, 0, 0, 0, 20), box(.82, .35, .82, x, .175, z), box(.86, .3, .86, x, h - .4, z), box(.72, .2, .72, x, h - .65, z)); CIRCLES.push({ x, z, r: .42, y0: s.y, y1: s.y + h }); };
+  if (s.columns === 'cross') for (let x = -26; x <= 26; x += 4) if (Math.abs(x) > 5) { colAt(x, -7.1); }
+  if (s.columns === 'entrance') for (const x of [-4.5, 4.5]) for (const z of [-14, -10.5]) colAt(x, z);
+  if (s.id === 'west_colonnade') for (let x = -57; x <= -33; x += 3) if (Math.abs(x + 48) > 1.5) colAt(x, -4.55);
+  if (s.carpet) {
+    const r = s.shape === 'rect' ? [(s.x1 - s.x0) * .74, (s.z1 - s.z0) * .62] : [s.rx * 1.24, s.rz * 1.24];
+    const cx = s.shape === 'rect' ? (s.x0 + s.x1) / 2 : s.cx, cz = s.shape === 'rect' ? (s.z0 + s.z1) / 2 : s.cz;
+    const cm = new THREE.Mesh(s.shape === 'rect' ? new THREE.BoxGeometry(r[0], .012, r[1]) : new THREE.CylinderGeometry(1, 1, .012, 64).scale(r[0] / 2, 1, r[1] / 2), surfMat('poly_wool_herringbone', s.carpet));
+    cm.position.set(cx, .006, cz); group.add(cm);
+  }
+  if (s.stairs) { // the flight, its stringers and balustrade
+    const steps = 26, run = (STAIR.zBot - STAIR.zTop) / steps, rise = ST / steps;
+    const st = [], tr = [];
+    for (let i = 0; i < steps; i++) { const z = STAIR.zBot - (i + .5) * run, y = (i + .5) * rise; st.push(box(STAIR.x1 - STAIR.x0, rise, run, (STAIR.x0 + STAIR.x1) / 2, y, z)); tr.push(box(STAIR.x1 - STAIR.x0, .02, .04, (STAIR.x0 + STAIR.x1) / 2, (i + 1) * rise, z + run / 2)); }
+    group.add(new THREE.Mesh(merge(st), C.stone));
+    for (const x of [STAIR.x0, STAIR.x1]) {
+      const len = Math.hypot(STAIR.zBot - STAIR.zTop, ST), ang = Math.atan2(ST, STAIR.zBot - STAIR.zTop);
+      tr.push(box(.12, .5, len, x, ST / 2 + .1, (STAIR.zTop + STAIR.zBot) / 2, ang), box(.08, .08, len, x, ST / 2 + 1.0, (STAIR.zTop + STAIR.zBot) / 2, ang));
+      for (let i = 1; i < steps; i += 1) tr.push(cyl(.025, .03, .85, x, i * rise + .45, STAIR.zBot - i * run));
+    }
+    for (let x = STAIR.x1 + .2; x < s.x1; x += .3) tr.push(cyl(.025, .03, .85, x, ST + .45, STAIR.zTop));
+    tr.push(box(s.x1 - STAIR.x1, .08, .08, (STAIR.x1 + s.x1) / 2, ST + 1.0, STAIR.zTop), box(.3, ST, STAIR.zBot - STAIR.zTop, STAIR.x1 + .15, ST / 2, (STAIR.zTop + STAIR.zBot) / 2), box(.3, ST + 1, s.z1 - STAIR.zTop, STAIR.x0 - .15, (ST + 1) / 2, (STAIR.zTop + s.z1) / 2));
+    gilt.push(...tr);
+  }
+  group.add(new THREE.Mesh(merge(gilt), gold));
+
+  // Chandeliers, instanced so the ballroom can carry rows of them.
+  {
+    const list = (s.chandeliers || []).slice();
+    if (s.mirrors) for (let x = s.x0 + 7; x < s.x1 - 3; x += 9) list.push([x, (s.z0 + s.z1) / 2]);
+    const grand = h > 5 && CHAND_GRAND, parts = grand ? CHAND_GRAND : CHAND_SMALL;
+    if (parts && list.length) {
+      const sc = s.mirrors ? 3 : grand ? (s.id === 'east_room' ? 2.1 : 1.6) : 1.2;
+      const ms = list.map(([x, z]) => mat4(x, h - .02, z, 0, 0, 0, sc, sc, sc));
+      for (const [m, g] of parts) instanced(group, g, m, ms, ms.map(() => ({ kind: 'decor', key: 'chandelier' })));
+    }
+  }
+  if (!s.place) return;
+
+  // ---------- furnishing kit
+  const cx = s.shape === 'rect' ? (s.x0 + s.x1) / 2 : s.cx, cz = s.shape === 'rect' ? (s.z0 + s.z1) / 2 : s.cz;
+  const occupied = [];
+  const block = (x0, z0, x1, z1, hgt = 1.2) => { occupied.push({ rect: [Math.min(x0, x1), Math.min(z0, z1), Math.max(x0, x1), Math.max(z0, z1)] }); addBox(Math.min(x0, x1), Math.min(z0, z1), Math.max(x0, x1), Math.max(z0, z1), s.y, s.y + hgt); };
+  const circle = (x, z, r, hgt = 1.2) => { occupied.push({ x, z, r }); CIRCLES.push({ x, z, r: r * .9, y0: s.y, y1: s.y + hgt }); };
+  const OB = new Map();
+  const putObj = (cat, m, rec, v = 0) => { const k = `${cat}#${v}`; if (!OB.has(k)) OB.set(k, { ms: [], metas: [] }); OB.get(k).ms.push(m); OB.get(k).metas.push({ kind: 'object', cat, efta: rec[0], term: rec[1], ord: rec[2] }); };
+  const place = (cat, x, y, z, ry = 0, sc = 1) => { const rec = take(cat); if (!rec) return null; const pr = PROTO[cat]; putObj(cat, mat4(x, y, z, 0, ry, 0, sc, sc, sc), rec, Math.floor(rand() * pr.variants.length)); return rec; };
+  const placeM = (cat, m) => { const rec = take(cat); if (!rec) return null; putObj(cat, m, rec, Math.floor(rand() * PROTO[cat].variants.length)); return rec; };
+  const DB = new Map();
+  const deco = (id, x, y, z, ry = 0, sc = 1, key = 'furniture', mo = null) => { if (!MD[id]) return false; const k = id + (mo ? '#' + mo.uuid : ''); if (!DB.has(k)) DB.set(k, { id, ms: [], metas: [], mo }); DB.get(k).ms.push(mat4(x, y, z, 0, ry, 0, sc, sc, sc)); DB.get(k).metas.push({ kind: 'decor', key, model: id }); return true; };
+  const PG = new Map();
+  const pg = (material, ...geos) => { if (!PG.has(material)) PG.set(material, []); PG.get(material).push(...geos.filter(Boolean)); };
+  const at = (geo, x, y, z, ry = 0) => geo.applyMatrix4(mat4(x, y, z, 0, ry, 0));
+  const EB = { ms: [], metas: [], black: [] };
+  const bag = (e, x, y, z, ry = 0, sc = 1) => { const meta = { kind: 'evidence', item: e[0], label: e[1], file: e[3], ds: e[4], keep: true }; const m = mat4(x, y, z, 0, ry, 0, sc, sc, sc); (opaque(e[1]) ? EB.black : EB.ms).push([m, meta]); };
+  const wallFree = (a, half) => { const sg = strip.segAt(a); if (!solid(sg) || isBlocked(a - half, a + half)) return false; if (strip.rect && (a - half < sg.a0 + .35 || a + half > sg.a0 + sg.L - .35)) return false; return true; };
+  const reserve = (a, half) => blocked.push([a - half, a + half]);
+  const wallSpots = (n, half, gap = .5, start = .5) => { const out = []; let a = start, guard = 0; while (out.length < n && guard++ < 6000 && a < strip.P) { if (wallFree(a, half)) { out.push(a); reserve(a, half + gap / 2); a += half * 2 + gap; } else a += .2; } return out; };
+  const wp = (a, out = 0) => { const p = strip.at(a); return { x: p.x + p.s.nx * out, z: p.z + p.s.nz * out, ry: Math.atan2(p.s.nx, p.s.nz) }; };
+  const seats = [];
+  const cam = cameraFor(s); s.cam = cam;
+  const clear = myDoors.map((d) => { const p = strip.at(d.a); return { x: p.x + p.s.nx * 1.1, z: p.z + p.s.nz * 1.1, r: Math.max(1.4, d.w * .7) }; });
+  const nearDoor = (x, z, r) => clear.some((c) => Math.hypot(x - c.x, z - c.z) < c.r + r);
+  const inside = (x, z, r) => s.shape === 'rect' ? x > s.x0 + .45 + r && x < s.x1 - .45 - r && z > s.z0 + .45 + r && z < s.z1 - .45 - r
+    : ((x - s.cx) / (s.rx - .5 - r)) ** 2 + ((z - s.cz) / (s.rz - .5 - r)) ** 2 < 1;
+  const segDist = (px, pz, a, b) => { const vx = b[0] - a[0], vz = b[2] - a[2]; const t = Math.max(0, Math.min(1, ((px - a[0]) * vx + (pz - a[2]) * vz) / (vx * vx + vz * vz || 1))); return Math.hypot(px - (a[0] + vx * t), pz - (a[2] + vz * t)); };
+  const placed = [];
+  const free = (x, z, r) => inside(x, z, r) && segDist(x, z, cam.from, cam.end) > 1.2 + r && !nearDoor(x, z, r)
+    && !occupied.some((o) => o.rect ? x > o.rect[0] - r && x < o.rect[2] + r && z > o.rect[1] - r && z < o.rect[3] + r : Math.hypot(x - o.x, z - o.z) < o.r + r)
+    && !placed.some((q) => Math.hypot(q.x - x, q.z - z) < q.r + r + .08);
+  const bx = s.shape === 'rect' ? [s.x0, s.x1, s.z0, s.z1] : [s.cx - s.rx, s.cx + s.rx, s.cz - s.rz, s.cz + s.rz];
+  function spot(r, tries = 260) { for (let i = 0; i < tries; i++) { const x = rr(bx[0], bx[1]), z = rr(bx[2], bx[3]); if (free(x, z, r)) { const q = { x, z, r }; placed.push(q); return q; } } return null; }
+  const evidence = (EVIDENCE_OF[s.place] || []).slice();
+  // Evidence table: a folding table with bags laid out in rows.
+  const evidenceTable = (x, z, ry = 0, n = 12) => {
+    pg(C.lightgrey, at(box(2.4, .04, .9, 0, .74, 0), x, 0, z, ry), ...[[-1.1, -.38], [1.1, -.38], [-1.1, .38], [1.1, .38]].map(([a, b]) => at(cyl(.02, .02, .72, a, .36, b), x, 0, z, ry)));
+    block(x - 1.3, z - .55, x + 1.3, z + .55, .8);
+    const c = Math.cos(ry), sn = Math.sin(ry);
+    for (let k = 0; k < n && evidence.length; k++) { const u = -0.95 + (k % 6) * .38, v = k < 6 ? -.2 : .22; bag(evidence.shift(), x + u * c + v * sn, .76, z - u * sn + v * c, ry + rr(-.1, .1)); }
+  };
+  // Steel shelving unit (free-standing, faces +z locally). Returns slot matrices on its five shelves.
+  const steelUnit = (x, z, ry, w = 1.8) => {
+    const m = mat4(x, 0, z, 0, ry, 0);
+    const g = [];
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) g.push(box(.04, 2.2, .04, sx * (w / 2 - .02), 1.1, sz * .28));
+    const levels = [.06, .56, 1.06, 1.56, 2.06];
+    for (const y of levels) g.push(box(w, .025, .6, 0, y, 0));
+    pg(C.grey, ...g.map((q) => q.applyMatrix4(m)));
+    block(x - Math.abs(Math.cos(ry)) * w / 2 - Math.abs(Math.sin(ry)) * .3, z - Math.abs(Math.sin(ry)) * w / 2 - Math.abs(Math.cos(ry)) * .3, x + Math.abs(Math.cos(ry)) * w / 2 + Math.abs(Math.sin(ry)) * .3, z + Math.abs(Math.sin(ry)) * w / 2 + Math.abs(Math.cos(ry)) * .3, 2.2);
+    const slots = [];
+    for (const y of levels) for (const u of [-w / 4, w / 4]) slots.push(m.clone().multiply(mat4(u, y + .015, 0, 0, rr(-.12, .12), 0)));
+    return slots;
+  };
+  // Wooden case against a wall (strip position a): shelves of books, returns slot matrices.
+  const bookcase = (a, w = 1.8, hh = 2.6, rows = true) => {
+    const m = wallMatrix(strip, a, 0, .2);
+    const g = [box(w, hh, .04, 0, hh / 2, -.18), box(.05, hh, .4, -w / 2, hh / 2, 0), box(.05, hh, .4, w / 2, hh / 2, 0), box(w, .06, .42, 0, hh, 0)];
+    const levels = [.08, .58, 1.08, 1.58, 2.08].filter((y) => y < hh - .3);
+    for (const y of levels) g.push(box(w, .04, .38, 0, y, 0));
+    pg(C.wood, ...g.map((q) => q.applyMatrix4(m)));
+    const slots = [];
+    for (const y of levels) {
+      slots.push(m.clone().multiply(mat4(-w / 4, y + .02, 0)), m.clone().multiply(mat4(w / 4, y + .02, 0)));
+      if (rows) { // spines filling the rest of the shelf
+        const spines = []; let u = -w / 2 + .06;
+        while (u < w / 2 - .06) { const bw = rr(.025, .06), bh = rr(.2, .34); if (Math.abs(u) > .08 && Math.abs(u - w / 4) > .32 && Math.abs(u + w / 4) > .32) spines.push(box(bw, bh, .24, u, y + .02 + bh / 2, .02)); u += bw + .004; }
+        const tint = [0x5a2a22, 0x22344f, 0x2d3d28, 0x6b5a3a, 0x3a2a45, 0x7a6b55][Math.floor(rand() * 6)];
+        if (spines.length) pg(mat(tint, .7), ...spines.map((q) => q.applyMatrix4(m)));
+      }
+    }
+    const p = wp(a, .25); occupied.push({ x: p.x, z: p.z, r: Math.max(.5, w / 2) });
+    return slots;
+  };
+  const table = (x, z, w, d, hh, material = C.wood, ry = 0) => {
+    pg(material, at(box(w, .05, d, 0, hh, 0), x, 0, z, ry), ...[[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([a, b]) => at(box(.06, hh, .06, a * (w / 2 - .06), hh / 2, b * (d / 2 - .06)), x, 0, z, ry)));
+    const c = Math.abs(Math.cos(ry)), sn = Math.abs(Math.sin(ry));
+    block(x - (c * w + sn * d) / 2, z - (sn * w + c * d) / 2, x + (c * w + sn * d) / 2, z + (sn * w + c * d) / 2, hh + .1);
+  };
+  const chair = (x, z, ry, sit = true, gilded = false) => { deco('dining_chair_02', x, 0, z, ry, 1, 'chair', gilded ? gold : null); if (sit) seats.push([x, z, ry]); };
+
+  // Signs and safety gear follow the doors: an exit sign over a door, an extinguisher beside it.
+  for (const d of myDoors) {
+    if (d.open) continue;
+    const y0 = s.stairs ? 0 : 0;
+    const e = take('exit_sign'); if (e) putObj('exit_sign', wallMatrix(strip, d.a, d.h + .55, .16), e);
+    const fa = d.a + d.w / 2 + .75;
+    if (wallFree(fa, .2)) { const f = take('fire_extinguisher'); if (f) { const p = wp(fa, .3); putObj('fire_extinguisher', mat4(p.x, 0, p.z, 0, p.ry, 0), f); circle(p.x, p.z, .25); reserve(fa, .3); } }
+  }
+  const wallItems = (cat, n, y, half = .3) => { for (const a of wallSpots(n, half, .8, rr(.4, 3))) { const rec = take(cat); if (!rec) break; putObj(cat, wallMatrix(strip, a, y + rr(-.06, .06), .16), rec); } };
+
+  // ---------- rooms by what they are
+  if (s.place === 'hall') {
+    const n = s.id === 'cross_hall' ? 3 : s.id === 'entrance_hall' ? 2 : 1;
+    if (MD.ClassicConsole_01) for (const a of wallSpots(n, 1.1, 3, rr(2, 6))) {
+      const p = wp(a, .36); deco('ClassicConsole_01', p.x, 0, p.z, p.ry, 1, 'console'); deco('marble_bust_01', p.x, dims('ClassicConsole_01').h, p.z, p.ry, 1.15, 'bust');
+      for (const [mt, g] of MD.ornate_mirror_01 || []) { const mesh = new THREE.Mesh(g, mt); mesh.applyMatrix4(wallMatrix(strip, a, Math.min(h - 1.1, 2.15), .03, 2.3, 2.3, 2.3)); mesh.userData.meta = { kind: 'decor', key: 'mirror', model: 'ornate_mirror_01' }; PICK.push(mesh); group.add(mesh); }
+      circle(p.x, p.z, .8, 1);
+    }
+    if (s.id === 'entrance_hall') { deco('vintage_grandfather_clock_01', -7.5, 0, -15.6, 0, 1.1, 'clock'); wallItems('security_camera', 1, h - .55); }
+  }
+
+  if (s.place === 'office') {
+    // The desk at the head of the room.
+    const dz = s.cz - s.rz + 2.2, dx = s.cx;
+    pg(C.desk, box(1.85, .74, .9, dx, .37, dz)); pg(gold, box(1.97, .05, 1.0, dx, .765, dz), box(.5, .36, .025, dx - .58, .38, dz + .455), box(.5, .36, .025, dx + .58, .38, dz + .455), tor(.15, .015, dx, .4, dz + .465));
+    block(dx - 1.05, dz - .55, dx + 1.05, dz + .55); chair(dx, dz - .9, 0, false);
+    // Rows of working desks, each with its computer, phone and papers.
+    const D = dims('metal_office_desk'), dw = MD.metal_office_desk ? D.w : 1.4, dd = MD.metal_office_desk ? D.d : .7, dh = MD.metal_office_desk ? D.h : .75;
+    for (const [x, z] of [[s.cx - 2.8, s.cz + 4.5], [s.cx + 2.8, s.cz + 4.5], [s.cx - 6, s.cz + 4.5], [s.cx + 6, s.cz + 4.5], [s.cx - 2.8, s.cz + 6.7], [s.cx + 2.8, s.cz + 6.7]]) if (evidence.length) evidenceTable(x, z, 0);
+    for (const z of [dz + 3.2, dz + 6.4, dz + 9.6]) for (let x = s.cx - 9; x <= s.cx + 9.01; x += dw + 1.3) {
+      if (((x - s.cx) / (s.rx - 1.4)) ** 2 + ((z - s.cz) / (s.rz - 1.4)) ** 2 > 1 || nearDoor(x, z, 1.2)) continue;
+      if (MD.metal_office_desk) deco('metal_office_desk', x, 0, z, Math.PI, 1, 'office_desk'); else table(x, z, dw, dd, dh, C.grey);
+      block(x - dw / 2, z - dd / 2, x + dw / 2, z + dd / 2, dh);
+      place('desktop_computer', x, dh, z - dd * .15, 0);
+      place('telephone', x + dw * .33, dh, z + dd * .08, -.3);
+      if (!place('office_supplies', x - dw * .3, dh, z + dd * .05, .2)) deco('binder_notebook', x - dw * .3, dh, z, .3, 1, 'binder');
+      chair(x, z + dd / 2 + .45, Math.PI);
+    }
+    // Printers on stands along the wall; posters above.
+    for (const a of wallSpots(POOL.printer ? POOL.printer.length : 0, .4, .9, 2)) { const p = wp(a, .45); pg(C.dark, at(box(.7, .72, .55, 0, .36, 0), p.x, 0, p.z, p.ry)); place('printer', p.x, .72, p.z, p.ry); circle(p.x, p.z, .45, 1.1); }
+    wallItems('keep_calm_poster', 6, 1.7, .3);
+    for (const a of wallSpots(3, .6, 1.5, 9)) { const p = wp(a, .35); deco('drawer_cabinet', p.x, 0, p.z, p.ry, 1, 'cabinet'); circle(p.x, p.z, .55); }
+    // The evidence log's office items, laid out on tables.
+  }
+
+  if (s.place === 'situation') {
+    const tx0 = s.x0 + 3.5, tx1 = s.x1 - 3.5, tz = s.z0 + 4.5;
+    table((tx0 + tx1) / 2, tz, tx1 - tx0, 1.8, .76, C.desk);
+    for (let x = tx0 + .5; x <= tx1 - .4; x += .95) { chair(x, tz - 1.3, 0); chair(x, tz + 1.3, Math.PI); }
+    // A wall of television monitors facing the table.
+    const tvs = ['Television_01', 'television_02'];
+    for (let r = 0; r < 3; r++) for (let k = 0; k < 6; k++) { const z = s.z0 + 1.4 + k * 1.15; deco(tvs[(r + k) % 2], s.x0 + .4, .9 + r * .85, z, H, .9, 'monitor'); pg(C.dark, box(.5, .04, .9, s.x0 + .3, .88 + r * .85, z)); }
+    block(s.x0, s.z0 + .6, s.x0 + .8, s.z0 + 7.8, 3);
+    // Network racks in two rows.
+    for (const [z, ry] of [[s.z1 - .8, Math.PI], [s.z1 - 3.4, 0]]) for (let x = s.x0 + 1.2; x <= s.x1 - 1; x += .7) { if (!place('network_switch', x, 0, z, ry)) break; }
+    block(s.x0 + .8, s.z1 - 1.15, s.x1 - .7, s.z1 - .45, 1.3); block(s.x0 + .8, s.z1 - 3.75, s.x1 - .7, s.z1 - 3.05, 1.3);
+    wallItems('security_camera', 2, h - .5);
+  }
+
+  if (s.place === 'sitting') {
+    const TV = dims('Television_01');
+    for (const gz of [-9, 3, 15]) {
+      const gx = cx;
+      deco('coffee_table_round_01', gx, 0, gz, 0, 1.2, 'coffee_table');
+      deco('Sofa_01', gx, 0, gz - 2.1, 0, 1, 'sofa'); deco('sofa_02', gx, 0, gz + 2.1, Math.PI, 1, 'sofa');
+      deco('ArmChair_01', gx - 2.5, 0, gz, H, 1, 'armchair'); deco('ArmChair_01', gx + 2.5, 0, gz, -H, 1, 'armchair');
+      block(gx - 3, gz - 2.7, gx + 3, gz + 2.7, .9);
+      const th = dims('coffee_table_round_01').h * 1.2;
+      place('disc', gx - .25, th, gz - .05, .3); place('disc', gx + .25, th, gz + .1, -.4);
+      // A media console against the west wall with a set on it.
+      pg(C.desk, box(.55, .6, 2.2, s.x0 + .35, .3, gz));
+      deco('Television_01', s.x0 + .4, .6, gz, H, 1.1, 'monitor');
+      place('disc', s.x0 + .35, .6, gz + .9, H); place('disc', s.x0 + .35, .6, gz - .9, H);
+      block(s.x0, gz - 1.2, s.x0 + .7, gz + 1.2, 1);
+      // Side tables with projectors at the sofa ends.
+      for (const sx of [-1, 1]) { table(gx + sx * 3.6, gz - 1.6, .6, .6, .6, C.wood); place('slide_projector', gx + sx * 3.6, .6, gz - 1.6, sx * -H); }
+    }
+    for (const z of [-13, -4, 9, 18]) { const rec = place('grand_piano', s.x1 - 2.1, 0, z, -H); if (rec) block(s.x1 - 3.2, z - 1.1, s.x1 - .2, z + 1.1, 1.1); }
+    for (const [x, z] of [[s.x0 + .9, s.z0 + .9], [s.x1 - .9, s.z0 + .9], [s.x0 + .9, s.z1 - .9], [s.x1 - .9, s.z1 - .9], [cx - 3.8, -9 + 2.3], [cx + 3.8, 3 + 2.3]]) if (place('potted_plant', x, 0, z, rr(0, 6))) circle(x, z, .45);
+  }
+
+  if (s.place === 'kitchen') {
+    // Counters along the south wall, three ranges among them, microwaves on top.
+    const zc = s.z1 - .35;
+    for (let x = s.x0 + .9, k = 0; x < s.x1 - .6; x += 1.0, k++) {
+      if (k % 6 === 2 && MD.electric_stove) { deco('electric_stove', x, 0, zc, Math.PI, 1, 'stove'); continue; }
+      pg(C.white, box(.98, .86, .62, x, .43, zc)); pg(C.stone, box(1.0, .05, .66, x, .885, zc));
+      if (k % 6 === 4) deco('vintage_microwave', x, .91, zc - .02, Math.PI, 1, 'microwave');
+    }
+    block(s.x0 + .4, s.z1 - .7, s.x1 - .4, s.z1, 1);
+    // Two islands, leaving the walk between the side doors free.
+    for (const [x0, x1] of [[s.x0 + 3, cx - 1.6], [cx + 1.6, s.x1 - 3]]) {
+      const z = cz - 3;
+      pg(C.white, box(x1 - x0, .86, 1.1, (x0 + x1) / 2, .43, z)); pg(C.stone, box(x1 - x0 + .1, .05, 1.2, (x0 + x1) / 2, .885, z));
+      block(x0, z - .6, x1, z + .6, 1);
+      for (let x = x0 + .6; x < x1 - .4; x += 1.4) { if (!place('potted_plant', x, .91, z, rr(0, 6), .55)) break; }
+      for (let k = 0; k < 4 && evidence.length; k++) bag(evidence.shift(), x0 + 1 + k * .45, .91, z + .3, rr(-.2, .2));
+    }
+    // Pantry shelving along the north wall, with the cases of water.
+    for (const x of [s.x0 + 2, s.x0 + 4, s.x1 - 4, s.x1 - 2]) for (const sl of steelUnit(x, s.z0 + .45, 0)) { if (!placeM('water_bottle', sl)) break; }
+  }
+
+  if (s.place === 'gym') {
+    pg(mat(0x1d1d1f, .95), box(12, .02, 8, s.cx, .01, s.cz + .5));
+    // Dumbbell rack along the south curve.
+    const rz = s.cz + s.rz - 1.6;
+    pg(C.dark, box(4.2, .05, .5, s.cx, .55, rz), box(4.2, .05, .5, s.cx, .95, rz - .1), ...[-2, 0, 2].map((u) => box(.06, 1, .5, s.cx + u, .5, rz)));
+    block(s.cx - 2.2, rz - .4, s.cx + 2.2, rz + .3, 1);
+    for (let k = 0; k < 10; k++) { if (!place('exercise_gear', s.cx - 1.7 + (k % 5) * .85, k < 5 ? .58 : .98, rz - (k < 5 ? 0 : .1), Math.PI, .9)) break; }
+    // Heavy bags and the gloves on a bench beside them.
+    for (const z of [s.cz - 1.5, s.cz + 1.8]) { pg(mat(0x7a1a1a, .6), cyl(.22, .22, 1.1, s.cx - 6, 1.35, z)); pg(C.grey, cyl(.01, .01, h - 1.9, s.cx - 6, 1.9 + (h - 1.9) / 2, z)); circle(s.cx - 6, z, .35, 2); }
+    const gz = s.cz - 3.4;
+    pg(C.black, box(1.6, .08, .4, s.cx - 4.4, .45, gz), box(.06, .45, .3, s.cx - 5.1, .22, gz), box(.06, .45, .3, s.cx - 3.7, .22, gz));
+    block(s.cx - 5.2, gz - .25, s.cx - 3.6, gz + .25, .6);
+    for (let k = 0; k < 7; k++) { if (!place('boxing_gloves', s.cx - 5 + (k % 4) * .4, .49, gz - .02 + (k > 3 ? .12 : 0), rr(-.4, .4), .75)) break; }
+    // Benches and treadmills.
+    for (const z of [s.cz - 1.5, s.cz + 2]) { pg(C.black, box(.35, .1, 1.3, s.cx + 4, .45, z), box(.06, .45, .3, s.cx + 4, .22, z - .5), box(.06, .45, .3, s.cx + 4, .22, z + .5)); pg(C.grey, box(1.6, .03, .03, s.cx + 4, 1.0, z - .55), box(.05, .9, .05, s.cx + 3.3, .5, z - .55), box(.05, .9, .05, s.cx + 4.7, .5, z - .55)); block(s.cx + 3.2, z - .8, s.cx + 4.8, z + .7, 1); }
+    for (const x of [-5, -2.6, 2.6, 5]) { const z = s.cz - s.rz + 2.6; pg(C.dark, box(.8, .2, 1.8, x, .1, z), box(.06, 1.2, .06, x - .35, .7, z - .8), box(.06, 1.2, .06, x + .35, .7, z - .8), box(.8, .25, .15, x, 1.3, z - .8)); pg(C.black, box(.65, .02, 1.5, x, .21, z + .05)); block(x - .45, z - .95, x + .45, z + .95, 1.3); }
+  }
+
+  if (s.place === 'bedroom') {
+    const B = dims('GothicBed_01'), bz = s.z1 - .2 - B.d / 2;
+    if (MD.GothicBed_01) { deco('GothicBed_01', cx, 0, bz, Math.PI, 1, 'bed'); block(cx - B.w / 2, bz - B.d / 2, cx + B.w / 2, bz + B.d / 2, 1.2); }
+    for (const sx of [-1, 1]) { const x = cx + sx * (B.w / 2 + .45); deco('ClassicNightstand_01', x, 0, s.z1 - .5, Math.PI, 1, 'nightstand'); deco('desk_lamp_arm_01', x, dims('ClassicNightstand_01').h, s.z1 - .55, Math.PI, 1, 'lamp'); circle(x, s.z1 - .5, .4, .8); }
+    for (let k = 0; k < 9 && evidence.length; k++) bag(evidence.shift(), cx - .8 + (k % 3) * .55, Math.max(.55, B.h * .45), bz - .7 + Math.floor(k / 3) * .6, rr(-.4, .4));
+    for (const a of wallSpots(2, .6, 2, 3)) { const p = wp(a, .35); deco('drawer_cabinet', p.x, 0, p.z, p.ry, 1, 'cabinet'); circle(p.x, p.z, .55); }
+    deco('ArmChair_01', s.x0 + 2, 0, s.z0 + 3, Math.PI * .75, 1, 'armchair'); deco('ArmChair_01', s.x0 + 4, 0, s.z0 + 3, -Math.PI * .75, 1, 'armchair'); circle(s.x0 + 3, s.z0 + 3, 1.3, 1);
+    if (evidence.length) evidenceTable(s.x1 - 3, s.z0 + 3, 0);
+  }
+
+  if (s.place === 'mechanical') {
+    // A manifold of pipes and valves down the west wall, with runs overhead.
+    let z = s.z0 + 1;
+    while (z < s.z1 - 1) { if (!place('pipe_valve', s.x0 + .35, 0, z, H)) break; z += .85; }
+    block(s.x0, s.z0 + .5, s.x0 + 1.3, z, 2.4);
+    pg(C.copper, cyl(.08, .08, s.z1 - s.z0 - 1, s.x0 + .35, h - .6, cz, H), cyl(.06, .06, s.z1 - s.z0 - 1, s.x0 + .75, h - .9, cz, H), cyl(.1, .1, s.x1 - s.x0 - 1, cx, h - .7, s.z0 + .4, 0, 0, H));
+    pg(C.grey, cyl(.12, .12, s.z1 - s.z0 - 1, s.x1 - .4, h - .8, cz, H));
+    // Workbenches down the middle with the power tools; tool chests beside them.
+    for (let bz = s.z0 + 3.5; bz < s.z1 - 3; bz += 4.4) {
+      pg(C.grey, box(2.2, .06, .85, cx, .9, bz), ...[[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([a, b]) => box(.06, .9, .06, cx + a * 1.04, .45, bz + b * .38)), box(2.1, .03, .75, cx, .25, bz)); pg(C.wood, box(2.24, .04, .9, cx, .94, bz));
+      block(cx - 1.15, bz - .5, cx + 1.15, bz + .5, 1);
+      for (let k = 0; k < 3; k++) place('power_tool', cx - .75 + k * .75, .96, bz, rr(-.3, .3), .6);
+      if (bz < cz) deco('tool_cart', cx + 1.9, 0, bz, -H, 1, 'tool_cart'); else deco('metal_tool_chest', cx + 1.9, 0, bz, -H, 1, 'tool_chest');
+      circle(cx + 1.9, bz, .5, 1.2);
+    }
+    for (const a of wallSpots(9, .4, .5, 1)) { const rec = take('ladder'); if (!rec) break; putObj('ladder', wallMatrix(strip, a, 0, .34).multiply(mat4(0, 0, 0, -.16, 0, 0)), rec); const p = wp(a, .3); CIRCLES.push({ x: p.x, z: p.z, r: .35, y0: s.y, y1: s.y + 2 }); }
+    for (let k = 0; k < 3; k++) place('air_filter', s.x1 - 1.2, .02 + k * .035, s.z1 - 2 - k * .02, Math.PI / 2 + rr(-.1, .1));
+    for (const [x, z] of [[cx - 3, s.z1 - 2.5], [cx + 1, s.z1 - 2.5]]) { pg(C.alu, cyl(.9, .9, 3.2, x, 1.6, z), sph(.9, x, 3.2, z, 1, .4, 1)); circle(x, z, 1, 3.5); }
+    deco('portable_generator', s.x1 - 1.5, 0, s.z0 + 2, -H, 1, 'generator'); deco('hand_truck', s.x1 - 1.2, 0, s.z0 + 4, -H, 1, 'hand_truck');
+    wallItems('warning_sign', 30, 1.6, .25);
+  }
+
+  if (s.place === 'ballroom') {
+    // The Hall of Mirrors: clerestory arches, windows on the north, mirrors on the south.
+    const glassM = mat(0x1a2430, .1, .3, { emissive: 0x0a1426, emissiveIntensity: .8 });
+    const mirrorM = new THREE.MeshStandardMaterial({ color: 0xe8eef2, metalness: 1, roughness: .04, envMapIntensity: 1.4 });
+    for (let x = s.x0 + 5; x < s.x1 - 3; x += 6) {
+      for (const [z, m, nz] of [[s.z0 + .03, glassM, 1], [s.z1 - .03, mirrorM, -1]]) {
+        pg(m, box(2.6, 4.6, .02, x, 8.6, z), new THREE.CylinderGeometry(1.3, 1.3, .02, 24, 1, false, -H, Math.PI).applyMatrix4(mat4(x, 10.9, z, H, 0, 0)));
+        pg(gold, box(.18, 5, .25, x - 1.39, 8.5, z + nz * .1), box(.18, 5, .25, x + 1.39, 8.5, z + nz * .1), new THREE.TorusGeometry(1.39, .1, 6, 24, Math.PI).applyMatrix4(mat4(x, 10.9, z + nz * .1)), box(3, .2, .3, x, 6.2, z + nz * .12));
+      }
+      pg(gold, box(.6, h - 1, .3, x + 3, (h - 1) / 2 + .2, s.z0 + .15), box(.6, h - 1, .3, x + 3, (h - 1) / 2 + .2, s.z1 - .15));
+    }
+    // Garden supplies by the entrance.
+    for (let k = 0; k < 6; k++) { if (!place('potting_soil', s.x0 + 3 + (k % 3) * 1.3, 0, s.z0 + 1.6 + Math.floor(k / 3) * 1.1 + (k % 2) * .05, rr(-.1, .1))) break; }
+    for (const [x, z] of [[s.x0 + 2.5, s.z1 - 1.5], [s.x0 + 5, s.z1 - 1.5]]) { deco('planter_box_01', x, 0, z, 0, 1.4, 'planter'); circle(x, z, .7); }
+    block(s.x0 + 2.2, s.z0 + .8, s.x0 + 6.8, s.z0 + 3.2, 1);
+    for (let k = 0; k < 6; k++) { const x = s.x0 + 9 + k * 1.2; if (place('potted_plant', x, 0, s.z1 - 1.2, rr(0, 6))) circle(x, s.z1 - 1.2, .45); }
+    // Storage: a row of steel shelving on the north wall and an island row facing it.
+    const shelfCats = ['storage_box', 'shipping_box', 'lightbulb'];
+    const fill = (slots) => { for (const sl of slots) { const c = shelfCats.find((k) => POOL[k] && POOL[k].length); if (!c) return; placeM(c, sl.clone().multiply(mat4(0, 0, 0, 0, 0, 0, c === 'shipping_box' ? .72 : 1, c === 'shipping_box' ? .72 : 1, c === 'shipping_box' ? .72 : 1))); } };
+    for (let k = 0; k < 7; k++) { fill(steelUnit(s.x0 + 16 + k * 1.95, s.z0 + .45, 0)); fill(steelUnit(s.x0 + 16 + k * 1.95, s.z0 + 4.4, Math.PI)); }
+    // Fuel drums four to a pallet.
+    let pk = 0;
+    while (POOL.fuel_drum && POOL.fuel_drum.length) {
+      const x = s.x0 + 32 + pk * 1.6, z = s.z0 + 1.2; pk++;
+      pg(C.wood, box(1.2, .14, 1.2, x, .07, z)); block(x - .62, z - .62, x + .62, z + .62, 1.1);
+      for (const [u, v] of [[-.3, -.3], [.3, -.3], [-.3, .3], [.3, .3]]) { const rec = take('fuel_drum'); if (!rec) break; putObj('fuel_drum', mat4(x + u, .14, z + v, 0, rr(0, 6), 0, .95, .95, .95), rec, 1); }
+    }
+    // Vehicles parked in rows.
+    const vx0 = s.x0 + 58;
+    outerV: for (const z of [s.z0 + 5, s.z0 + 12.5, s.z0 + 20]) for (let x = vx0; x < s.x1 - 2; x += 2.4) { const rec = take('utility_vehicle'); if (!rec) break outerV; putObj('utility_vehicle', mat4(x, 0, z, 0, 0, 0), rec); block(x - .7, z - 1.3, x + .7, z + 1.3, 2); }
+    deco('covered_car', s.x1 - 4, 0, s.z1 - 3, H, 1, 'covered_car'); circle(s.x1 - 4, s.z1 - 3, 2.6, 1.6);
+    for (const e of evidence.splice(0)) bag(e, s.x1 - 7 + rr(-.3, .3), 0, s.z1 - 3 + rr(-.6, .6), rr(0, 6));
+    wallItems('warning_sign', 14, 1.7, .25);
+    wallItems('security_camera', 2, h - .7);
+  }
+
+  if (s.place === 'library') {
+    const slots = [];
+    for (const a of wallSpots(9, .9, .1, .3)) slots.push(...bookcase(a, 1.8, Math.min(2.6, h - .5)));
+    slots.sort(() => rand() - .5);
+    for (const sl of slots) { if (!placeM('books', sl.clone().multiply(mat4(0, 0, -.05, 0, 0, 0, .55, .55, .55)))) break; }
+    table(cx, cz, 3, 1.3, .76, C.desk);
+    deco('desk_lamp_arm_01', cx - 1, .78, cz, 0, 1, 'lamp'); deco('desk_lamp_arm_01', cx + 1, .78, cz, 0, 1, 'lamp');
+    for (let k = 0; k < 6 && evidence.length; k++) bag(evidence.shift(), cx - .9 + k * .36, .79, cz + .25, rr(-.2, .2));
+    for (const sx of [-1, 1]) chair(cx + sx * .7, cz - 1.05, 0, true);
+  }
+
+  if (s.place === 'bath') {
+    // Vanities with mirrors down the north wall; the bottles and tissues on them.
+    let k = 0;
+    for (const a of wallSpots(6, .8, .9, 1)) {
+      const p = wp(a, .32), m = mat4(p.x, 0, p.z, 0, p.ry, 0);
+      pg(C.white, ...[box(1.4, .82, .55, 0, .41, 0)].map((g) => g.applyMatrix4(m))); pg(C.stone, ...[box(1.45, .05, .6, 0, .845, 0)].map((g) => g.applyMatrix4(m)));
+      pg(mat(0xf4f4f2, .2), ...[new THREE.SphereGeometry(.24, 18, 10, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2).applyMatrix4(mat4(0, .87, .02, 0, 0, 0, 1, .5, .8))].map((g) => g.applyMatrix4(m)));
+      for (const [mt, g] of MD.ornate_mirror_01 || []) { const mesh = new THREE.Mesh(g, mt); mesh.applyMatrix4(wallMatrix(strip, a, 1.85, .03, 1.6, 1.6, 1.6)); group.add(mesh); }
+      const top = (cat, u) => { const rec = take(cat); if (rec) putObj(cat, m.clone().multiply(mat4(u, .87, -.05, 0, rr(-.4, .4), 0)), rec); return rec; };
+      if (k % 2 === 0) { if (!(POOL.skincare && POOL.skincare.length > 2 && top('skincare', -.5))) top('tissue_box', -.5); } else top('tissue_box', .5);
+      if (evidence.length) bag(evidence.shift(), p.x + .45 * Math.cos(p.ry), .87, p.z - .45 * Math.sin(p.ry), p.ry);
+      circle(p.x, p.z, .75, 1); k++;
+    }
+    // Freestanding tubs; two toilets at the east end.
+    for (const x of [s.x0 + 4, s.x1 - 6]) { pg(mat(0xf6f6f4, .15), new THREE.CapsuleGeometry(.42, .9, 6, 18).applyMatrix4(mat4(x, .42, s.z1 - 2.2, H, 0, H, 1, 1, .62))); block(x - .95, s.z1 - 2.65, x + .95, s.z1 - 1.75, .8); }
+    for (const z of [s.z0 + 2.5, s.z0 + 4.5]) { const x = s.x1 - .45; pg(C.white, box(.38, .42, .5, x - .1, .21, z), box(.42, .5, .18, x + .12, .65, z), cyl(.2, .18, .08, x - .15, .44, z)); circle(x, z, .4, .8); }
+  }
+
+  if (s.place === 'laundry') {
+    // Washers and dryers along the south wall with detergent on top.
+    let k = 0;
+    for (let x = s.x0 + 1; x < s.x1 - 1 && k < 12; x += .75, k++) {
+      if (Math.abs(x - (-19)) < 1.2) continue;
+      pg(C.white, box(.68, .86, .64, x, .43, s.z1 - .4)); pg(mat(0x2b3138, .15, .4), cyl(.2, .2, .02, x, .5, s.z1 - .72, H)); pg(C.grey, box(.6, .06, .02, x, .78, s.z1 - .73));
+      if (k % 4 === 1) place('laundry', x, .86, s.z1 - .4, Math.PI + rr(-.2, .2), .9);
+    }
+    block(s.x0 + .6, s.z1 - .75, s.x1 - .6, s.z1, 1);
+    // Linen shelving on the west wall, a folding table in the middle.
+    for (const z of [s.z0 + 2.5, s.z0 + 4.6, s.z0 + 9.5]) for (const sl of steelUnit(s.x0 + .45, z, H)) { if (!placeM('bed_linens', sl.clone().multiply(mat4(0, 0, 0, 0, 0, 0, .8, .8, .8)))) break; }
+    table(cx, cz + 1, 2.4, 1.1, .9, C.white);
+    pg(C.white, ...[0, 1, 2, 3].map((i) => box(.4, .05, .3, cx - .7 + i * .45, .95 + (i % 2) * .05, cz + 1)));
+    pg(C.grey, box(1.3, .03, .35, cx + 3.5, .9, cz - 2), box(.03, .9, .03, cx + 3.2, .45, cz - 2), box(.03, .9, .03, cx + 3.8, .45, cz - 2)); circle(cx + 3.5, cz - 2, .7, 1);
+  }
+
+  if (s.place === 'closet') {
+    // Rails of hanging clothes, split to keep the cross paths open; shoes beneath.
+    const colors = [0x2a2a2e, 0x3d3b47, 0x52504a, 0x6b5f4f, 0x2f3b4a, 0x8a8178, 0x4a2f2f, 0xd8d2c4];
+    for (const z of [s.cz - 3.6, s.cz - 2, s.cz + 2, s.cz + 3.6]) for (const [x0, x1] of [[s.cx - 5.4, s.cx - 1.1], [s.cx + 1.1, s.cx + 5.4]]) {
+      if (((x0 - s.cx) / s.rx) ** 2 + ((z - s.cz) / s.rz) ** 2 > .8) continue;
+      pg(C.alu, box(x1 - x0, .03, .03, (x0 + x1) / 2, 1.75, z), box(.03, 1.75, .03, x0, .875, z), box(.03, 1.75, .03, x1, .875, z));
+      for (let x = x0 + .1; x < x1 - .1; x += rr(.06, .12)) pg(mat(colors[Math.floor(rand() * colors.length)], .9), box(.03, rr(.75, 1.1), .48, x, 1.68 - rr(.75, 1.1) / 2, z));
+      for (let x = x0 + .15; x < x1 - .1; x += .32) pg(C.black, box(.1, .08, .26, x, .04, z - .1), box(.1, .08, .26, x + .12, .04, z - .1));
+      block(x0, z - .3, x1, z + .3, 1.8);
+    }
+    for (const a of wallSpots(3, .6, 1.5, 4)) { const p = wp(a, .35); deco('drawer_cabinet', p.x, 0, p.z, p.ry, 1, 'cabinet'); circle(p.x, p.z, .55); }
+  }
+
+  if (s.place === 'massage') {
+    for (const x of [cx - 2.8, cx + 2.8]) {
+      pg(mat(0x6d5747, .6), box(.7, .12, 1.9, x, .72, cz + 1), ...[[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([a, b]) => box(.05, .66, .05, x + a * .28, .33, cz + 1 + b * .85)));
+      pg(C.white, box(.62, .05, .4, x, .8, cz + .25));
+      block(x - .4, cz, x + .4, cz + 2, .9);
+    }
+    pg(C.white, ...[0, 1, 2, 3].map((i) => box(.38, .07, .28, cx, .7 + i * .075, s.z0 + .6)));
+    table(cx, s.z0 + .6, .9, .45, .65, C.wood);
+    for (let k = 0; k < 3; k++) { if (!place('skincare', cx - .3 + k * .3, .66, s.z0 + .55, rr(0, 6), .9)) break; }
+    deco('desk_lamp_arm_01', cx + .35, .66, s.z0 + .6, 0, 1, 'lamp');
+    if (evidence.length) evidenceTable(cx, s.z1 - 1.5, 0);
+  }
+
+  if (s.place === 'vault') {
+    for (const [x, z] of [[s.x0 + .6, s.z0 + 1.5], [s.x0 + .6, s.z0 + 3.2], [s.x1 - .6, s.z0 + 1.5], [s.x1 - .6, s.z0 + 3.2]]) {
+      const ry = x < cx ? H : -H;
+      pg(mat(0x2b2d31, .35, .7), at(box(.9, 1.4, .8, 0, .7, 0), x, 0, z, ry)); pg(C.alu, at(cyl(.12, .12, .05, 0, .9, .42, H), x, 0, z, ry), at(box(.04, .3, .04, .3, .75, .42), x, 0, z, ry));
+      circle(x, z, .6, 1.5);
+    }
+    wallItems('warning_sign', 6, 1.6, .25);
+  }
+
+  // Anything of this room's kind the fixtures could not hold stands in neat floor rows.
+  const KIND = { office: ['desktop_computer', 'telephone', 'printer', 'office_supplies', 'keep_calm_poster'], situation: ['network_switch'], sitting: ['disc', 'slide_projector', 'grand_piano', 'potted_plant'], kitchen: ['water_bottle'], gym: ['exercise_gear', 'boxing_gloves'], mechanical: ['pipe_valve', 'power_tool', 'ladder', 'air_filter'], ballroom: ['storage_box', 'shipping_box', 'lightbulb', 'fuel_drum', 'utility_vehicle', 'potting_soil', 'potted_plant', 'warning_sign', 'security_camera', 'fire_extinguisher', 'exit_sign'], library: ['books'], bath: ['skincare', 'tissue_box'], laundry: ['laundry', 'bed_linens'], massage: ['skincare'] };
+  for (const cat of KIND[s.place] || []) {
+    const pr = PROTO[cat]; if (!pr || pr.wall !== undefined || pr.lean) continue;
+    while (POOL[cat] && POOL[cat].length) { const p = spot(pr.r, 300); if (!p) break; place(cat, p.x, 0, p.z, rr(0, 6)); CIRCLES.push({ x: p.x, z: p.z, r: pr.r * .85, y0: s.y, y1: s.y + 1.2 }); }
+  }
+  for (const e of evidence.splice(0)) { const p = spot(.3); if (p) bag(e, p.x, 0, p.z, rr(0, 6)); }
+
+  // ---------- flush instanced batches
+  for (const [key, { ms, metas }] of OB) { const [cat, v] = key.split('#'); for (const [material, geo] of PROTO[cat].variants[+v] || PROTO[cat].variants[0]) instanced(group, geo, material, ms, metas); }
+  for (const { id, ms, metas, mo } of DB.values()) for (const [m, g] of part(id)) instanced(group, g, mo || m, ms, metas);
+  for (const [material, geos] of PG) if (geos.length) group.add(new THREE.Mesh(merge(geos), material));
+  for (const [list, black] of [[EB.ms, false], [EB.black, true]]) {
+    if (!list.length) continue;
+    const ms = list.map(([m]) => m), metas = list.map(([, meta]) => meta);
+    for (const [material, geo] of [BAG.shell, BAG.seal, BAG.tag, black ? [BLACKBAG, BAG.inside[1].clone().scale(1.5, 1.6, 1.6)] : BAG.inside]) { const im = instanced(group, geo, material, ms, metas); if (im) im.userData.keep = true; }
+  }
+
+  // ---------- photographs of this kind of place: a spaced hang that never overlaps; the rest stand in stacks
+  const frames = [...(FRAMES_OF[s.id] || [])];
+  const band0 = 1.3, band1 = Math.min(h - .75, s.mirrors ? 6 : h - .75), bandH = band1 - band0;
+  const rows = Math.max(1, Math.min(3, Math.floor(bandH / 1.35)));
+  const rowH = bandH / rows;
+  const fMs = [], fMeta = [];
+  for (let r = 0; r < rows && frames.length; r++) {
+    let a = rr(.3, .9) + r * .55;
+    const yc = band0 + (r + .5) * rowH;
+    while (a < strip.P - .3 && frames.length) {
+      const fh = rowH * rr(.5, .74), fw = Math.min(1.5, fh * rr(.72, 1.45));
+      const sg = strip.segAt(a);
+      if (!solid(sg)) { a = sg.a0 + sg.L + .3; continue; }
+      if (strip.rect && a + fw > sg.a0 + sg.L - .25) { a = sg.a0 + sg.L + .3; continue; }
+      if (isBlocked(a, a + fw)) { a += .25; continue; }
+      fMs.push(wallMatrix(strip, a + fw / 2, yc + rr(-.05, .05), .07, fw, fh, 1)); fMeta.push(frameMeta(frames.shift(), true));
+      a += fw + rr(.35, .7);
+    }
+  }
+  s.framesHung = fMs.length;
+  const stacks = []; let guard = 0;
+  while (frames.length && guard++ < 400) {
+    const a = rr(0, strip.P); const sg = strip.segAt(a);
+    if (!wallFree(a, .6) || stacks.some((b) => Math.abs(b - a) < 1.3)) continue;
+    const p = strip.at(a); const fx = p.x + p.s.nx * .45, fz = p.z + p.s.nz * .45;
+    if (!free(fx, fz, .5)) continue;
+    stacks.push(a); reserve(a, .6);
+    const n = Math.min(frames.length, 6 + Math.floor(rand() * 6));
+    for (let k = 0; k < n; k++) {
+      const fh = rr(.55, .95), fw = fh * rr(.75, 1.35);
+      fMs.push(wallMatrix(strip, a + rr(-.05, .05), 0, .12 + k * .065).multiply(mat4(0, fh / 2 * .99, fh / 2 * Math.sin(.14), -.14, 0, 0, fw, fh, 1)));
+      fMeta.push(frameMeta(frames.shift(), false));
+    }
+    occupied.push({ x: fx, z: fz, r: .7 }); CIRCLES.push({ x: fx, z: fz, r: .55, y0: s.y, y1: s.y + 1 });
+  }
+  // Whatever the walls cannot take goes into art-storage bins: frames standing on end, to be flipped through.
+  let binGuard = 0;
+  while (frames.length && binGuard++ < 80) {
+    const p = spot(.85, 400); if (!p) break;
+    const ry = rr(0, Math.PI), base = mat4(p.x, 0, p.z, 0, ry, 0);
+    pg(C.wood, box(1.5, .3, .62, 0, .15, 0).applyMatrix4(base), box(1.5, .5, .04, 0, .25, -.31).applyMatrix4(base), box(1.5, .5, .04, 0, .25, .31).applyMatrix4(base));
+    const n = Math.min(frames.length, 26);
+    for (let k = 0; k < n; k++) {
+      const fh = rr(.42, .56), fw = fh * rr(.85, 1.15);
+      fMs.push(base.clone().multiply(mat4(-.66 + k * .052, .3 + fh / 2, 0, 0, H, 0)).multiply(mat4(0, 0, 0, 0, 0, .1, fw, fh, 1)));
+      fMeta.push(frameMeta(frames.shift(), false));
+    }
+    CIRCLES.push({ x: p.x, z: p.z, r: .8, y0: s.y, y1: s.y + 1 });
+  }
+  s.unplaced = frames.length;
+  instanced(group, FRAME, goldFrame, fMs, fMeta);
+  const wi = fMeta.map((m, i) => (m.status === 'person' || m.status === 'nudity' ? i : -1)).filter((i) => i >= 0);
+  instanced(group, PANE, paneMat, wi.map((i) => fMs[i]), wi.map((i) => fMeta[i]));
+  s.framesShown = fMs.length; s.withheld = wi.length;
+  s.objectsShown = [...OB.values()].reduce((n, b) => n + b.ms.length, 0);
+  s.counts = {}; for (const [key, { ms }] of OB) { const c = key.split('#')[0]; s.counts[c] = (s.counts[c] || 0) + ms.length; }
+  s.evidenceShown = EB.ms.length + EB.black.length;
+
+  // ---------- figures: seated where there are chairs at work, the rest standing among things
+  const figs = { stand: [], stand2: [], sit: [] };
+  let nF = s.figures || 0;
+  for (const [x, z, ry] of seats.sort(() => rand() - .5)) { if (nF <= 0 || figs.sit.length >= Math.ceil(seats.length * .55)) break; figs.sit.push(mat4(x, .02, z, 0, ry, 0)); nF--; }
+  for (let k = 0; k < nF; k++) {
+    const p = spot(.34, 500); if (!p) continue;
+    const sc = rr(.92, 1.08);
+    (rand() < .35 ? figs.stand2 : figs.stand).push(mat4(p.x, 0, p.z, 0, rr(0, 6.28), 0, sc, sc, sc));
+    CIRCLES.push({ x: p.x, z: p.z, r: .26, y0: s.y, y1: s.y + 1.8 });
+  }
+  for (const [kind, ms] of Object.entries(figs)) { const im = instanced(group, FIG[kind], figureMat, ms, ms.map(() => ({ kind: 'figure' }))); if (im) im.userData.keep = true; }
+  s.figuresShown = figs.stand.length + figs.stand2.length + figs.sit.length;
 }
 
-// ---------------------------------------------------------------- tour
-let idx = 0, t0 = performance.now(), playing = true, transitioning = false;
-const DWELL = 17000;
-let yawOff = 0, pitchOff = 0;
-function setRoom(i) {
-  ROOMS[idx].group.visible = false;
-  idx = (i + ROOMS.length) % ROOMS.length;
-  ROOMS[idx].group.visible = true;
-  t0 = performance.now(); yawOff = 0; pitchOff = 0;
-  showPlacard(ROOMS[idx]);
-  $('counter').textContent = `${pad(idx + 1, 2)} / ${ROOMS.length}`;
+function frameMeta(f, hung) { const [n, status, desc, ord] = Array.isArray(f) ? f : [f, 'unknown', '', 0]; return { kind: 'frame', efta: n, status, desc, ord, hung }; }
+
+// Tour viewpoint for a room: stand near one end of its long axis, look to the far end.
+function cameraFor(s) {
+  const eye = 1.62;
+  if (s.id === 'oval_office') return { from: [s.cx + s.rx - 1.2, eye, s.cz + .9], to: [s.cx - s.rx + 1.5, 1.0, s.cz - s.rz + 1.2], end: [s.cx + s.rx - 2.2, eye, s.cz + .5] };
+  if (s.shape === 'oval') return { from: [s.cx, eye, s.cz + s.rz - 1.2], to: [s.cx, 1.3, s.cz - s.rz], end: [s.cx, eye, s.cz + s.rz - 2.4] };
+  const w = s.x1 - s.x0, d = s.z1 - s.z0, cx = (s.x0 + s.x1) / 2, cz = (s.z0 + s.z1) / 2;
+  if (s.table) return { from: [s.x0 + 1.2, eye + .3, s.z1 - 1.3], to: [cx + w / 4, 1.0, s.z0 + 1], end: [s.x0 + 1.8, eye + .3, s.z1 - 2.4] };
+  if (w >= d) return { from: [s.x0 + 1.1, eye, cz + d * .18], to: [s.x1, 1.3, cz - d * .12], end: [s.x0 + 1.1 + Math.min(w * .3, 5), eye, cz + d * .1] };
+  return { from: [cx + w * .18, eye, s.z1 - 1.1], to: [cx - w * .12, 1.3, s.z0], end: [cx + w * .1, eye, s.z1 - 1.1 - Math.min(d * .3, 6)] };
 }
+
+// ---------------------------------------------------------------- outside: the Executive Residence at night, north front
+const OUT = { x0: -26.3, x1: 26.6, z0: -16.3, z1: 10.5, top: ST + 10.6 };
+const NORTH = { id: 'north_lawn', name: 'The North Lawn', floor: 'Outside, north front', exterior: true, y: ST };
+function buildExterior() {
+  const g = new THREE.Group(); scene.add(g); NORTH.group = g;
+  const facade = surfMat('painted_plaster_wall', 0xf7f4ec, { emissive: 0x3a3428, emissiveIntensity: .35 });
+  const trim = mat(0xfbf9f3, .55, 0, { emissive: 0x2e2a22, emissiveIntensity: .3 });
+  const glass = mat(0x2b2418, .2, 0, { emissive: 0xffc77a, emissiveIntensity: .55 });
+  const darkGlass = mat(0x0d1016, .1, .3);
+  // Grade: the north lawn sits at State Floor height; the south lawn at the Ground Floor.
+  const lawnTop = new THREE.Mesh(new THREE.BoxGeometry(130, ST, 70), C.grass); lawnTop.position.set(0, ST / 2 - .001, -16.3 - 35); g.add(lawnTop);
+  const south = new THREE.Mesh(new THREE.PlaneGeometry(140, 70).rotateX(-H), C.grass); south.position.set(-10, -.02, 25); g.add(south);
+  const drive = new THREE.Mesh(new THREE.RingGeometry(14, 19, 64, 1, Math.PI, Math.PI).rotateX(-H), mat(0x8a8478, .85)); drive.position.set(0, ST + .01, -27); g.add(drive);
+  const walk = new THREE.Mesh(new THREE.PlaneGeometry(4, 40).rotateX(-H), mat(0x8a8478, .85)); walk.position.set(0, ST + .012, -46); g.add(walk);
+  // Shell: four outward walls with windows cut as dark recesses and lit panes.
+  const W = OUT.x1 - OUT.x0, D = OUT.z1 - OUT.z0, cx = (OUT.x0 + OUT.x1) / 2, cz = (OUT.z0 + OUT.z1) / 2;
+  const walls = [];
+  const face = (w, h, x, y, z, ry) => { const pg = new THREE.PlaneGeometry(w, h); const uv = pg.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * w / 2.4, uv.getY(i) * h / 2.4); return pg.applyMatrix4(mat4(x, y, z, 0, ry, 0)); };
+  walls.push(face(W, OUT.top, cx, OUT.top / 2, OUT.z0, Math.PI), face(W, OUT.top, cx, OUT.top / 2, OUT.z1, 0), face(D, OUT.top, OUT.x0, OUT.top / 2, cz, -H), face(D, OUT.top, OUT.x1, OUT.top / 2, cz, H));
+  g.add(new THREE.Mesh(merge(walls), facade));
+  const tr = [], panes = [], dark = [];
+  const windowAt = (x, y, z, ry, w = 1.5, h = 2.6, ped = 0) => {
+    const m = mat4(x, y, z, 0, ry, 0);
+    panes.push(box(w, h, .04, 0, 0, .02).applyMatrix4(m));
+    for (let k = 1; k < 3; k++) tr.push(box(.05, h, .06, -w / 2 + k * w / 3, 0, .05).applyMatrix4(m));
+    tr.push(box(.05 + w, .05, .06, 0, 0, .05).applyMatrix4(m), box(w + .3, .14, .2, 0, -h / 2 - .07, .1).applyMatrix4(m), box(.16, h + .2, .14, -w / 2 - .08, 0, .07).applyMatrix4(m), box(.16, h + .2, .14, w / 2 + .08, 0, .07).applyMatrix4(m), box(w + .3, .16, .14, 0, h / 2 + .08, .07).applyMatrix4(m));
+    if (ped === 1) { const sh = new THREE.Shape(); sh.moveTo(-w / 2 - .35, 0); sh.lineTo(w / 2 + .35, 0); sh.lineTo(0, .55); sh.closePath(); tr.push(new THREE.ExtrudeGeometry(sh, { depth: .25, bevelEnabled: false }).applyMatrix4(mat4(0, h / 2 + .18, 0)).applyMatrix4(m)); }
+    if (ped === 2) tr.push(new THREE.CylinderGeometry(w / 2 + .35, w / 2 + .35, .25, 24, 1, false, -H, Math.PI).applyMatrix4(mat4(0, h / 2 + .18, .12, H, 0, 0, 1, 1, .6)).applyMatrix4(m));
+  };
+  // North front: State Floor and second floor; the portico takes the middle bay.
+  let k = 0;
+  for (let x = OUT.x0 + 3; x < OUT.x1 - 2; x += 4.1, k++) {
+    if (Math.abs(x) < 8.5) continue;
+    windowAt(x, ST + 2.1, OUT.z0 - .01, Math.PI, 1.5, 2.8, k % 2 ? 1 : 2);
+    windowAt(x, ST + 7.1, OUT.z0 - .01, Math.PI, 1.5, 2.2, 0);
+  }
+  for (const x of [-4.2, 4.2]) { windowAt(x, ST + 2.1, OUT.z0 - .01, Math.PI, 1.5, 2.8, 1); windowAt(x, ST + 7.1, OUT.z0 - .01, Math.PI, 1.5, 2.2); }
+  windowAt(0, ST + 7.1, OUT.z0 - .01, Math.PI, 1.8, 2.2);
+  // South front: three storeys.
+  for (let x = OUT.x0 + 3; x < OUT.x1 - 2; x += 4.1) for (const y of [1.8, ST + 2.1, ST + 7.1]) windowAt(x, y, OUT.z1 + .01, 0, 1.4, y < 3 ? 2 : 2.6, y > 5 && y < 8 ? 1 : 0);
+  for (const z of [-11, -5, 1, 7]) for (const y of [ST + 2.1, ST + 7.1]) { windowAt(OUT.x0 - .01, y, z, -H, 1.4, 2.4); windowAt(OUT.x1 + .01, y, z, H, 1.4, 2.4); }
+  // Cornice, roof balustrade, string course.
+  const ring = (y, hh, dd) => { tr.push(box(W + dd * 2, hh, dd, cx, y, OUT.z0 - dd / 2 + .05), box(W + dd * 2, hh, dd, cx, y, OUT.z1 + dd / 2 - .05), box(dd, hh, D, OUT.x0 - dd / 2 + .05, y, cz), box(dd, hh, D, OUT.x1 + dd / 2 - .05, y, cz)); };
+  ring(OUT.top - .25, .5, .7); ring(ST + .25, .25, .3); ring(ST + 4.9, .3, .35);
+  ring(OUT.top + .9, .14, .5); ring(OUT.top + .1, .16, .45);
+  for (let x = OUT.x0; x <= OUT.x1; x += .36) for (const z of [OUT.z0 - .2, OUT.z1 + .2]) tr.push(cyl(.06, .08, .7, x, OUT.top + .48, z, 0, 0, 0, 8));
+  for (let z = OUT.z0; z <= OUT.z1; z += .36) for (const x of [OUT.x0 - .2, OUT.x1 + .2]) tr.push(cyl(.06, .08, .7, x, OUT.top + .48, z, 0, 0, 0, 8));
+  g.add(new THREE.Mesh(new THREE.BoxGeometry(W, .3, D), trim)).position.set(cx, OUT.top, cz);
+  // The North Portico: Ionic columns, entablature, pediment, lantern.
+  const pz0 = OUT.z0 - 10.5, pz1 = OUT.z0, ph = OUT.top - ST - 1.1;
+  tr.push(box(17, .45, 10.8, 0, ST + .22, (pz0 + pz1) / 2));
+  for (let i = 0; i < 4; i++) for (const z of [pz0 + .9]) {
+    const x = -6.6 + i * 4.4;
+    tr.push(cyl(.52, .6, ph, x, ST + .45 + ph / 2, z, 0, 0, 0, 20), box(1.5, .5, 1.5, x, ST + .7, z), box(1.6, .4, 1.6, x, ST + .45 + ph, z));
+    CIRCLES.push({ x, z, r: .7, y0: ST, y1: ST + ph });
+  }
+  for (const x of [-6.6, 6.6]) for (const z of [pz0 + 4.5, pz0 + 8.1]) { tr.push(cyl(.52, .6, ph, x, ST + .45 + ph / 2, z, 0, 0, 0, 20), box(1.5, .5, 1.5, x, ST + .7, z), box(1.6, .4, 1.6, x, ST + .45 + ph, z)); CIRCLES.push({ x, z, r: .7, y0: ST, y1: ST + ph }); }
+  tr.push(box(16.6, 1.3, 10.5, 0, ST + ph + 1.1, (pz0 + pz1) / 2));
+  { const sh = new THREE.Shape(); sh.moveTo(-8.6, 0); sh.lineTo(8.6, 0); sh.lineTo(0, 2.8); sh.closePath(); tr.push(new THREE.ExtrudeGeometry(sh, { depth: 10.5, bevelEnabled: false }).applyMatrix4(mat4(0, ST + ph + 1.75, pz0 - .1))); }
+  g.add(new THREE.Mesh(merge(tr), trim));
+  g.add(new THREE.Mesh(merge(panes), glass));
+  // The front door, open.
+  const fd = new THREE.Mesh(merge([box(2.4, 3.8, .4, 0, ST + 1.9, OUT.z0 - .15)]), darkGlass); fd.visible = false; g.add(fd);
+  const lantern = new THREE.Mesh(merge([sph(.45, 0, ST + ph - 1.2, (pz0 + pz1) / 2, 1, 1.3, 1)]), glow(0xffd58a, 2.4)); g.add(lantern);
+  const porchLight = new THREE.PointLight(0xffd8a0, 60, 0, 2); porchLight.position.set(0, ST + ph - 1.8, (pz0 + pz1) / 2); g.add(porchLight);
+  // Iron fence along Pennsylvania Avenue.
+  const fence = [];
+  for (let x = -60; x <= 60; x += .22) fence.push(cyl(.02, .02, 2.2, x, ST + 1.1, -78, 0, 0, 0, 6));
+  fence.push(box(120, .06, .06, 0, ST + 2.0, -78), box(120, .06, .06, 0, ST + .3, -78));
+  g.add(new THREE.Mesh(merge(fence), mat(0x111214, .5, .6)));
+  // Walking: the lawn, the portico; walls with the front door open.
+  REGIONS.push({ space: NORTH, inside: (x, z) => x >= -60 && x <= 60 && z >= -77.5 && z <= -16, y: () => ST });
+  addSeg(OUT.x0, OUT.z0, -1.1, OUT.z0, 0, OUT.top); addSeg(1.1, OUT.z0, OUT.x1, OUT.z0, 0, OUT.top);
+  addSeg(-1.1, OUT.z0, -1.1, -16, ST, ST + 4); addSeg(1.1, OUT.z0, 1.1, -16, ST, ST + 4);
+  addSeg(-60, -16, OUT.x0, -16, ST - 1, ST + 3); addSeg(OUT.x1, -16, 60, -16, ST - 1, ST + 3);
+  addSeg(-60, -77.5, 60, -77.5, ST - 1, ST + 3); addSeg(-60, -77.5, -60, -16, ST - 1, ST + 3); addSeg(60, -77.5, 60, -16, ST - 1, ST + 3);
+  const fnt = new THREE.Mesh(merge([cyl(3, 3.2, .6, 0, ST + .3, -40, 0, 0, 0, 40)]), mat(0xd9d3c4, .6)); g.add(fnt);
+  const water = new THREE.Mesh(new THREE.CircleGeometry(2.8, 40).rotateX(-H), mat(0x1c2a38, .05, .2, { emissive: 0x0c1520, emissiveIntensity: 1 })); water.position.set(0, ST + .58, -40); g.add(water);
+  CIRCLES.push({ x: 0, z: -40, r: 3.2, y0: ST, y1: ST + 1 });
+}
+buildExterior();
+scene.background = new THREE.Color(0x0b1220);
+scene.fog = new THREE.Fog(0x0b1220, 60, 150);
+
+for (let i = 0; i < SPACES.length; i++) { buildSpace(SPACES[i]); status(`Gilding the rooms… ${i + 1}/${SPACES.length}`); await new Promise((r) => requestAnimationFrame(r)); }
+
+// Two warm lights travel with you from room to room.
+const lampA = new THREE.PointLight(0xffdfb0, 1, 0, 2), lampB = new THREE.PointLight(0xfff0d8, 1, 0, 2);
+scene.add(lampA, lampB);
+function lightSpace(s) {
+  if (s.exterior) { lampA.intensity = 0; lampB.intensity = 0; return; }
+  const cx = s.shape === 'rect' ? (s.x0 + s.x1) / 2 : s.cx, cz = s.shape === 'rect' ? (s.z0 + s.z1) / 2 : s.cz;
+  const h = s.stairs ? SH : s.h, y = s.stairs ? ST : s.y;
+  lampA.position.set(cx, y + h - 1.2, cz); lampA.intensity = h * h * 2.6;
+  const long = s.shape === 'rect' ? Math.max(s.x1 - s.x0, s.z1 - s.z0) : 0;
+  lampB.position.set(cx + (s.shape === 'rect' && s.x1 - s.x0 > s.z1 - s.z0 ? long / 4 : 0), y + h * .6, cz + (s.shape === 'rect' && s.z1 - s.z0 >= s.x1 - s.x0 ? long / 4 : 0)); lampB.intensity = h * h * 1.6;
+}
+
+// ---------------------------------------------------------------- placard and evidence tag
+function showPlacard(s) {
+  $('p-title').textContent = s.name;
+  if (s.exterior) {
+    $('p-code').textContent = '—'; $('p-sum').textContent = 'The Executive Residence, north front'; $('p-floor').textContent = 'Outside'; $('p-efta').textContent = '—'; $('p-inv').textContent = 'Walk up the drive and in through the North Portico.';
+    return;
+  }
+  if (!s.place) {
+    $('p-code').textContent = '—'; $('p-sum').textContent = s.floor; $('p-floor').textContent = s.floor; $('p-efta').textContent = 'None. A passage.'; $('p-inv').textContent = '—';
+    return;
+  }
+  $('p-code').textContent = String.fromCharCode(65 + TOUR.indexOf(s.id));
+  $('p-sum').textContent = `${s.label || 'Halls and stairs'} · ${s.objectsShown} objects · ${s.evidenceShown} seized · ${s.figuresShown} figures`;
+  $('p-floor').textContent = s.floor;
+  $('p-efta').textContent = s.framesShown ? `${s.framesShown} of ${s.label ? s.label.toLowerCase() : 'halls and stairs'} · ${s.withheld} withheld` : 'none of this kind';
+  const list = Object.entries(s.counts || {}).filter(([k]) => LABEL[k]).sort((a, b) => b[1] - a[1]);
+  $('p-inv').textContent = list.length ? list.slice(0, 5).map(([k, n]) => `${n} ${LABEL[k][n === 1 ? 0 : 1]}`).join(', ') + (list.length > 5 ? `, and ${list.length - 5} more kinds` : '') : 'nothing from the files';
+}
+$('placard').onclick = () => $('placard').classList.toggle('collapsed');
+
+function row(k, v, href) { const dt = document.createElement('dt'); dt.textContent = k; const dd = document.createElement('dd'); if (href) { const a = document.createElement('a'); a.href = href; a.target = '_blank'; a.rel = 'noopener'; a.textContent = v; dd.append(a); } else dd.textContent = v; return [dt, dd]; }
+function credit(ids) { const c = MODEL_CREDIT(ids); return c ? c.map((x) => x.id).join(' + ') + ' · Poly Haven, CC0' : 'Built in code for this piece'; }
+function showInfo(meta, spaceName) {
+  const rows = $('i-rows'); rows.replaceChildren(); const note = $('i-note'); note.hidden = true;
+  const add = (...r) => rows.append(...row(...r));
+  const title = $('i-title'); title.classList.remove('black');
+  if (meta.kind === 'object') {
+    $('i-kind').textContent = 'Evidence · object';
+    title.textContent = LABEL[meta.cat][0].replace(/^./, (c) => c.toUpperCase());
+    add('Photograph', efta(meta.efta)); add('DOJ file', 'Open the PDF', dojUrl(meta.efta)); add('Matched word', `“${meta.term}”`); add('Shot', `${meta.ord.toLocaleString()} of ${inv.photos.toLocaleString()} in the search`); add('Room', spaceName);
+    const ids = MODEL_OF[meta.cat]; add('3D model', credit(ids));
+    if (ids) add('Model page', 'polyhaven.com', MODEL_CREDIT(ids)[0].url);
+    note.hidden = false; note.textContent = 'The word above appears in the OCR text of this photograph. The object is a stand-in for what the photograph shows, not a reconstruction of it.';
+  } else if (meta.kind === 'frame') {
+    const withheld = meta.status === 'person' || meta.status === 'nudity';
+    $('i-kind').textContent = withheld ? 'Evidence · withheld' : meta.hung ? 'Evidence · photograph' : 'Evidence · stacked photograph';
+    title.textContent = meta.status === 'nudity' ? 'Withheld: nudity' : meta.status === 'person' ? 'Withheld: shows a person' : 'Photograph with no legible text';
+    if (withheld) title.classList.add('black');
+    add('Photograph', efta(meta.efta)); add('DOJ file', 'Open the PDF', dojUrl(meta.efta)); if (meta.ord) add('Shot', `${meta.ord.toLocaleString()} of ${inv.photos.toLocaleString()} in the search`); add('Room', spaceName);
+    note.hidden = false;
+    if (meta.status === 'nudity') note.textContent = 'This photograph shows nudity. It is not reproduced or described here; the record is at the link above.';
+    else if (meta.desc) note.textContent = (meta.status === 'person' ? 'Not shown because a person is in it. ' : '') + 'The dataset describes it: “' + meta.desc + '”';
+    else note.textContent = meta.status === 'person' ? 'Not shown because a person is in it. Its description is not reproduced here.' : 'No description of this photograph exists in the dataset.';
+  } else if (meta.kind === 'evidence') {
+    $('i-kind').textContent = 'Evidence · seized and logged';
+    title.textContent = meta.label;
+    if (meta.item) add('Item', `No. ${meta.item}`);
+    add('Logged in', meta.file || '—'); const src = dojDoc(meta.file, meta.ds); if (src) add('DOJ file', 'Open the PDF', src);
+    add('Source', 'FBI evidence recovery log'); add('Room', spaceName);
+    note.hidden = false; note.textContent = opaque(meta.label) ? 'Logged by investigators. Sealed in a black bag here: not reproduced or described.' : 'Logged by investigators. Shown sealed in a bag; the item itself is not reconstructed.';
+  } else if (meta.kind === 'figure') {
+    $('i-kind').textContent = 'Redaction';
+    title.textContent = 'Redacted'; title.classList.add('black');
+    add('Stands for', '1,000 redaction fragments'); add('In the release', `${(inv.redaction_fragments || 0).toLocaleString()} fragments, ${inv.figureTotal} figures`); add('Source', 'kabasshouse/epstein-data', 'https://huggingface.co/datasets/kabasshouse/epstein-data');
+    note.hidden = false; note.textContent = 'Only the count of redactions was used. Nothing beneath them was read.';
+  } else {
+    const ids = meta.model ? [meta.model] : (FURNISHING[meta.key] || ['', []])[1];
+    const name = (FURNISHING[meta.key] || [])[0] || (meta.key || 'furnishing').replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase());
+    $('i-kind').textContent = 'Furnishing · not from the files';
+    title.textContent = name; add('Room', spaceName); add('3D model', credit(ids)); if (ids.length) add('Model page', 'polyhaven.com', MODEL_CREDIT(ids)[0].url);
+  }
+  $('info').hidden = false;
+}
+const hideInfo = () => { $('info').hidden = true; };
+$('i-close').onclick = hideInfo;
+
+const ray = new THREE.Raycaster(); ray.far = 14;
+const visiblePick = () => PICK.filter((o) => { let p = o; while (p) { if (!p.visible) return false; p = p.parent; } return true; });
+function pickAt(nx, ny) {
+  ray.setFromCamera(new THREE.Vector2(nx, ny), camera);
+  const hits = ray.intersectObjects(visiblePick(), false);
+  // Ignore anything behind a wall: compare with the nearest wall along the ray.
+  const wallD = wallDistance(camera.position, ray.ray.direction);
+  for (const h of hits) {
+    if (h.distance > wallD + .05) break;
+    const o = h.object; const meta = o.userData.metas ? o.userData.metas[h.instanceId] : o.userData.meta;
+    if (meta) return meta;
+  }
+  return null;
+}
+function wallDistance(o, d) {
+  let best = Infinity;
+  for (const s of SEGS) {
+    const ex = s.x2 - s.x1, ez = s.z2 - s.z1; const den = d.x * ez - d.z * ex; if (Math.abs(den) < 1e-6) continue;
+    const t = ((s.x1 - o.x) * ez - (s.z1 - o.z) * ex) / den, u = ((s.x1 - o.x) * d.z - (s.z1 - o.z) * d.x) / den;
+    if (t <= 0 || u < 0 || u > 1) continue;
+    const y = o.y + d.y * t; if (y < s.y0 || y > s.y1) continue;
+    best = Math.min(best, t * Math.hypot(d.x, d.z) / Math.hypot(d.x, d.y, d.z));
+  }
+  return best;
+}
+
+// ---------------------------------------------------------------- movement
+const P = { x: 0, z: -13, y: ST, yaw: Math.PI, pitch: 0, eye: 1.62, r: .28 };
+const keys = new Set();
+let mode = 'idle'; // 'walk' | 'tour' | 'idle'
+function supportAt(x, z, y) {
+  let best = null;
+  for (const R of REGIONS) { if (!R.inside(x, z)) continue; const ry = R.y(x, z); if (Math.abs(ry - y) < .7 && (!best || Math.abs(ry - y) < Math.abs(best.y - y))) best = { y: ry, space: R.space }; }
+  return best;
+}
+function collide(x, z, y) {
+  const r = P.r, y0 = y + .25, y1 = y + 1.7;
+  for (let it = 0; it < 3; it++) {
+    for (const s of SEGS) {
+      if (s.y1 < y0 || s.y0 > y1) continue;
+      const ex = s.x2 - s.x1, ez = s.z2 - s.z1, L2 = ex * ex + ez * ez || 1;
+      const t = Math.max(0, Math.min(1, ((x - s.x1) * ex + (z - s.z1) * ez) / L2));
+      const px = s.x1 + ex * t, pz = s.z1 + ez * t, dx = x - px, dz = z - pz, d = Math.hypot(dx, dz);
+      if (d < r && d > 1e-6) { x = px + dx / d * r; z = pz + dz / d * r; }
+    }
+    for (const c of CIRCLES) {
+      if (c.y1 < y0 || c.y0 > y1) continue;
+      const dx = x - c.x, dz = z - c.z, d = Math.hypot(dx, dz), m = c.r + r;
+      if (d < m && d > 1e-6) { x = c.x + dx / d * m; z = c.z + dz / d * m; }
+    }
+  }
+  return [x, z];
+}
+let current = null;
+function step(dt) {
+  if (!$('pc').hidden) return;
+  let f = 0, s = 0;
+  if (keys.has('KeyW') || keys.has('ArrowUp')) f += 1; if (keys.has('KeyS') || keys.has('ArrowDown')) f -= 1;
+  if (keys.has('KeyD') || keys.has('ArrowRight')) s += 1; if (keys.has('KeyA') || keys.has('ArrowLeft')) s -= 1;
+  f += stick.y; s += stick.x;
+  const len = Math.hypot(f, s); if (len > 1) { f /= len; s /= len; }
+  const speed = (keys.has('ShiftLeft') || keys.has('ShiftRight') || stick.run) ? 3.4 : 1.7;
+  const sin = Math.sin(P.yaw), cos = Math.cos(P.yaw);
+  let nx = P.x + (-sin * f + cos * s) * speed * dt, nz = P.z + (-cos * f - sin * s) * speed * dt;
+  [nx, nz] = collide(nx, nz, P.y);
+  const sup = supportAt(nx, nz, P.y);
+  if (sup) { P.x = nx; P.z = nz; P.y += (sup.y - P.y) * Math.min(1, dt * 14); enterSpace(sup.space); }
+  else { // slide along one axis if the full step left the floor
+    const a = supportAt(nx, P.z, P.y), b = supportAt(P.x, nz, P.y);
+    if (a) { P.x = nx; P.y += (a.y - P.y) * Math.min(1, dt * 14); } else if (b) { P.z = nz; P.y += (b.y - P.y) * Math.min(1, dt * 14); }
+  }
+}
+function enterSpace(s) {
+  if (s === current) return;
+  current = s; showPlacard(s); lightSpace(s); levelVisibility(s);
+  if (mode === 'walk') { const i = TOUR.indexOf(s.id); if (i >= 0) tourIdx = i; }
+}
+// Show only the floor you are on (the staircase and its neighbours stay visible).
+function levelVisibility(s) {
+  const outside = !!s.exterior;
+  if (NORTH.group) NORTH.group.visible = !figureMode && (outside || s.id === 'entrance_hall');
+  const up = s.stairs ? null : s.y > 2;
+  for (const sp of SPACES) sp.group.visible = outside ? (sp.id === 'entrance_hall' || sp.id === 'cross_hall') : (sp.stairs || up === null || (sp.y > 2) === up);
+}
+// Figure mode: drop the ground. Only the redacted people and the seized evidence remain.
+let figureMode = false;
+const NIGHT = new THREE.Color(0x0b1220), VOID = new THREE.Color(0xefece4), FOG = scene.fog;
+function setFigure(on) {
+  figureMode = on; hideInfo();
+  for (const sp of SPACES) sp.group.traverse((o) => { if (o.isMesh) o.visible = on ? !!o.userData.keep : true; });
+  scene.background = on ? VOID : NIGHT; scene.fog = on ? null : FOG; hemi.intensity = on ? 1.6 : .55;
+  $('figure').textContent = on ? 'Ground' : 'Figure';
+  if (current) levelVisibility(current);
+  const figs = SPACES.reduce((n, s) => n + (s.figuresShown || 0), 0), ev = SPACES.reduce((n, s) => n + (s.evidenceShown || 0), 0);
+  hint(on ? `Figure mode · ${figs} redacted people and ${ev} seized items. Everything else is gone.` : 'Ground restored', 6000);
+}
+
+// Mouse look with pointer lock on desktop; drag to look as a fallback.
+const coarse = matchMedia('(pointer: coarse)').matches;
+function look(dx, dy) { P.yaw -= dx * .0024; P.pitch = Math.max(-1.25, Math.min(1.25, P.pitch - dy * .0024)); }
+document.addEventListener('pointerlockchange', () => { $('cross').hidden = !(document.pointerLockElement === canvas) && !coarse; if (document.pointerLockElement !== canvas && mode === 'walk' && !coarse) hint('Click to look around · Esc releases the mouse'); });
+document.addEventListener('mousemove', (e) => { if (document.pointerLockElement === canvas && mode === 'walk') look(e.movementX, e.movementY); });
+addEventListener('keydown', (e) => {
+  if (e.code === 'Escape' && !$('pc').hidden) { $('pc').hidden = true; return; }
+  if (!$('pc').hidden || (e.target.closest && e.target.closest('#info a, input, select'))) return;
+  keys.add(e.code);
+  if (mode === 'tour') { if (e.key === 'ArrowRight') go(tourIdx + 1); if (e.key === 'ArrowLeft') go(tourIdx - 1); if (e.key === ' ') { e.preventDefault(); $('play').click(); } }
+  if (e.code === 'Escape') hideInfo();
+  if (e.code === 'KeyE' && mode === 'walk') inspectCenter();
+  if (e.code === 'KeyF') setFigure(!figureMode);
+  if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code) && mode === 'walk') e.preventDefault();
+});
+addEventListener('keyup', (e) => keys.delete(e.code));
+addEventListener('blur', () => keys.clear());
+function inspectCenter() { useItem(pickAt(0, 0)); }
+
+// Pointer handling on the canvas: lock or inspect with the mouse; joystick, look and tap with touch.
+const stick = { x: 0, y: 0, run: false, id: null, ox: 0, oy: 0 };
+const lookTouch = { id: null, x: 0, y: 0, sx: 0, sy: 0, t: 0 };
+let mouseDrag = null;
+canvas.addEventListener('pointerdown', (e) => {
+  if (mode === 'idle') return;
+  if (e.pointerType === 'mouse') {
+    if (mode === 'walk' && document.pointerLockElement !== canvas) { try { canvas.requestPointerLock(); } catch (_) {} mouseDrag = { x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY }; return; }
+    if (mode === 'walk') { inspectCenter(); return; }
+    mouseDrag = { x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY };
+    return;
+  }
+  canvas.setPointerCapture(e.pointerId);
+  if (mode === 'walk' && e.clientX < innerWidth * .45 && e.clientY > innerHeight * .35 && stick.id === null) {
+    stick.id = e.pointerId; stick.ox = e.clientX; stick.oy = e.clientY;
+    const st = $('stick'); st.hidden = false; st.style.left = e.clientX + 'px'; st.style.top = e.clientY + 'px'; st.firstElementChild.style.transform = '';
+    return;
+  }
+  if (lookTouch.id === null) Object.assign(lookTouch, { id: e.pointerId, x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, t: performance.now() });
+});
+canvas.addEventListener('pointermove', (e) => {
+  if (e.pointerId === stick.id) {
+    let dx = e.clientX - stick.ox, dy = e.clientY - stick.oy; const d = Math.hypot(dx, dy), R = 50;
+    if (d > R) { dx = dx / d * R; dy = dy / d * R; }
+    stick.x = dx / R; stick.y = -dy / R; stick.run = d > R * 1.6;
+    $('stick').firstElementChild.style.transform = `translate(${dx}px, ${dy}px)`;
+  } else if (e.pointerId === lookTouch.id) {
+    const k = 3.0 / Math.max(innerWidth, innerHeight) / .0024;
+    if (mode === 'walk') look((e.clientX - lookTouch.x) * k * .55, (e.clientY - lookTouch.y) * k * .55);
+    else { yawOff += (e.clientX - lookTouch.x) * .005; pitchOff = Math.max(-.6, Math.min(.6, pitchOff + (e.clientY - lookTouch.y) * .005)); }
+    lookTouch.x = e.clientX; lookTouch.y = e.clientY;
+  } else if (mouseDrag && mode === 'tour') {
+    yawOff += (e.clientX - mouseDrag.x) * .004; pitchOff = Math.max(-.6, Math.min(.6, pitchOff + (e.clientY - mouseDrag.y) * .004));
+    mouseDrag.x = e.clientX; mouseDrag.y = e.clientY;
+  }
+});
+const endPointer = (e) => {
+  if (e.pointerId === stick.id) { stick.id = null; stick.x = stick.y = 0; stick.run = false; $('stick').hidden = true; }
+  if (e.pointerId === lookTouch.id) {
+    const moved = Math.hypot(e.clientX - lookTouch.sx, e.clientY - lookTouch.sy);
+    if (moved < 10 && performance.now() - lookTouch.t < 350) tapPick(e.clientX, e.clientY);
+    lookTouch.id = null;
+  }
+  if (e.pointerType === 'mouse' && mouseDrag && mode === 'tour') { if (Math.hypot(e.clientX - mouseDrag.sx, e.clientY - mouseDrag.sy) < 5) tapPick(e.clientX, e.clientY); mouseDrag = null; }
+  if (e.pointerType === 'mouse' && mode === 'walk') mouseDrag = null;
+};
+canvas.addEventListener('pointerup', endPointer); canvas.addEventListener('pointercancel', endPointer);
+function tapPick(cx, cy) { useItem(pickAt(cx / innerWidth * 2 - 1, -(cy / innerHeight) * 2 + 1)); }
+function useItem(m) { if (!m) { hideInfo(); return; } if (m.kind === 'object' && m.cat === 'desktop_computer') { openComputer(m); return; } showInfo(m, current ? current.name : ''); }
+let URLS = null, pcShown = 0;
+async function openComputer(meta) {
+  if (document.pointerLockElement) document.exitPointerLock();
+  hideInfo(); keys.clear(); $('pc').hidden = false;
+  $('pc-title').textContent = `History · the desktop computer in photograph ${efta(meta.efta)}`;
+  if (!URLS) {
+    $('pc-count').textContent = 'Loading the history…';
+    try { URLS = await (await fetch('computers/urls.json')).json(); } catch (e) { $('pc-count').textContent = 'The history did not load. Close and try again.'; return; }
+  }
+  $('pc-foot').textContent = `Every web address in the ${URLS.emails.toLocaleString()} emails of the release: ${URLS.urls.length.toLocaleString()} addresses on ${new Set(URLS.urls.filter((r) => r[0]).map((r) => r[0].split('/')[0])).size.toLocaleString()} sites, most frequent first. Query strings are removed, and the addresses are text, not links. ${URLS.withheld.toLocaleString()} are withheld because their words could refer to minors. The file link opens the first email that mentions each address.`;
+  renderPc(true); $('pc-q').focus();
+}
+function renderPc(reset) {
+  if (!URLS) return;
+  const q = $('pc-q').value.trim().toLowerCase();
+  const rows = q ? URLS.urls.filter(([u]) => u && u.includes(q)) : URLS.urls;
+  if (reset) { $('pc-list').replaceChildren(); pcShown = 0; $('pc-list').scrollTop = 0; }
+  const frag = document.createDocumentFragment();
+  for (const [u, n, file, ds] of rows.slice(pcShown, pcShown + 300)) {
+    const li = document.createElement('li');
+    const t = document.createElement('span'); t.className = u ? 'u' : 'u withheld'; t.textContent = u || 'Withheld: words that could refer to minors';
+    const c = document.createElement('span'); c.className = 'n'; c.textContent = '×' + n.toLocaleString();
+    const href = dojDoc(file, ds); const a = document.createElement(href ? 'a' : 'span'); a.className = 'src'; a.textContent = file || ''; if (href) { a.href = href; a.target = '_blank'; a.rel = 'noopener'; }
+    li.append(t, c, a); frag.append(li);
+  }
+  $('pc-list').append(frag); pcShown += 300;
+  $('pc-more').hidden = pcShown >= rows.length;
+  $('pc-count').textContent = `${rows.length.toLocaleString()} ${q ? 'matching ' : ''}addresses`;
+}
+$('pc-q').addEventListener('input', () => renderPc(true));
+$('pc-more').onclick = () => renderPc(false);
+$('pc-close').onclick = () => { $('pc').hidden = true; };
+
+let hintT = 0;
+function hint(t, ms = 5000) { const el = $('hint'); el.textContent = t; el.hidden = false; el.style.opacity = 1; clearTimeout(hintT); hintT = setTimeout(() => (el.style.opacity = 0), ms); }
+
+// ---------------------------------------------------------------- guided tour
+let tourIdx = 0, t0 = performance.now(), playing = true, transitioning = false, yawOff = 0, pitchOff = 0;
+const DWELL = 17000;
 const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+function setTourRoom(i) {
+  tourIdx = (i + TOUR.length) % TOUR.length;
+  const s = SP[TOUR[tourIdx]];
+  t0 = performance.now(); yawOff = 0; pitchOff = 0;
+  current = null; enterSpace(s);
+  $('counter').textContent = `${pad(tourIdx + 1, 2)} / ${TOUR.length}`;
+}
 function go(i) {
   if (transitioning) return; transitioning = true;
-  const wipe = $('wipe'), pl = $('placard');
-  wipe.classList.remove('right'); wipe.classList.add('on'); pl.classList.add('fading');
-  setTimeout(() => {
-    setRoom(i); wipe.classList.add('right');
-    requestAnimationFrame(() => { wipe.classList.remove('on'); pl.classList.remove('fading'); });
-    setTimeout(() => { transitioning = false; }, 450);
-  }, reduced ? 0 : 440);
+  const wipe = $('wipe'); wipe.classList.remove('right'); wipe.classList.add('on');
+  setTimeout(() => { setTourRoom(i); wipe.classList.add('right'); requestAnimationFrame(() => wipe.classList.remove('on')); setTimeout(() => (transitioning = false), 450); }, reduced ? 0 : 440);
 }
-$('prev').onclick = () => go(idx - 1);
-$('next').onclick = () => go(idx + 1);
+$('prev').onclick = () => go(tourIdx - 1);
+$('next').onclick = () => go(tourIdx + 1);
 $('play').onclick = () => { playing = !playing; $('play').textContent = playing ? 'Pause' : 'Play'; t0 = performance.now(); };
-addEventListener('keydown', (e) => { if (e.key === 'ArrowRight') go(idx + 1); if (e.key === 'ArrowLeft') go(idx - 1); if (e.key === ' ') { e.preventDefault(); $('play').click(); } });
 
-// Drag to look.
-let drag = null;
-canvas.addEventListener('pointerdown', (e) => { drag = { x: e.clientX, y: e.clientY, yaw: yawOff, pitch: pitchOff }; canvas.setPointerCapture(e.pointerId); $('hint').style.opacity = 0; });
-canvas.addEventListener('pointermove', (e) => { if (!drag) return; const k = 3.2 / Math.max(innerWidth, innerHeight); yawOff = drag.yaw + (e.clientX - drag.x) * k; pitchOff = Math.max(-.6, Math.min(.6, drag.pitch + (e.clientY - drag.y) * k)); });
-const endDrag = () => { drag = null; }; canvas.addEventListener('pointerup', endDrag); canvas.addEventListener('pointercancel', endDrag);
+function setMode(m) {
+  mode = m; hideInfo();
+  $('tourbar').hidden = m !== 'tour';
+  $('mode').textContent = m === 'tour' ? 'Walk' : 'Tour';
+  if (m === 'walk') {
+    // Step out of the tour where the tour camera stood.
+    if (current && current.cam && !current.exterior) { const c = current.cam; P.x = c.from[0]; P.z = c.from[2]; P.y = current.y; P.yaw = Math.atan2(-(c.to[0] - c.from[0]), -(c.to[2] - c.from[2])); P.pitch = 0; }
+    $('cross').hidden = !coarse && document.pointerLockElement !== canvas;
+    hint(coarse ? 'Left thumb to walk · drag to look · tap anything to inspect' : 'Click to look around · WASD to walk · click anything to inspect', 7000);
+  } else { if (document.pointerLockElement) document.exitPointerLock(); $('cross').hidden = true; { const i = current ? TOUR.indexOf(current.id) : -1; setTourRoom(i >= 0 ? i : tourIdx); } hint(coarse ? 'Drag to look · tap anything to inspect' : 'Drag to look · click anything to inspect'); }
+}
+$('mode').onclick = () => setMode(mode === 'tour' ? 'walk' : 'tour');
+$('figure').onclick = () => setFigure(!figureMode);
 
-function resize() { const w = innerWidth, h = innerHeight; renderer.setSize(w, h, false); camera.aspect = w / h; camera.fov = w < h ? 74 : 62; camera.updateProjectionMatrix(); }
+// ---------------------------------------------------------------- frame loop
+function resize() { const w = innerWidth, h = innerHeight; renderer.setSize(w, h, false); camera.aspect = w / h; camera.fov = w < h ? 76 : 66; camera.updateProjectionMatrix(); }
 addEventListener('resize', resize); resize();
-
-const tmpA = new THREE.Vector3(), tmpB = new THREE.Vector3();
+let last = performance.now();
+const crossEl = $('cross'); let hotT = 0;
 function frame(now) {
-  const room = ROOMS[idx], c = room.cam;
-  let u = Math.min(1, (now - t0) / DWELL); if (!playing) u = Math.min(u, .5);
-  const e = reduced ? 0 : (1 - Math.cos(u * Math.PI)) / 2;
-  tmpA.set(c.from[0] + (c.end[0] - c.from[0]) * e, c.from[1] + (c.end[1] - c.from[1]) * e, c.from[2] + (c.end[2] - c.from[2]) * e);
-  tmpA.add(room.group.position);
-  camera.position.copy(tmpA);
-  tmpB.set(c.to[0], c.to[1], c.to[2]).add(room.group.position);
-  camera.lookAt(tmpB);
-  const sway = reduced ? 0 : Math.sin(now / 5200) * .14;
-  camera.rotateY(yawOff + sway); camera.rotateX(-pitchOff - (innerHeight > innerWidth ? .2 : 0));
+  const dt = Math.min(.05, (now - last) / 1000); last = now;
+  if (mode === 'walk' || mode === 'idle') {
+    if (mode === 'walk') step(dt);
+    camera.position.set(P.x, P.y + P.eye + (mode === 'walk' ? Math.sin(now / 180) * .012 * Math.min(1, Math.hypot(stick.x, stick.y) + (keys.size ? 1 : 0)) : 0), P.z);
+    camera.rotation.set(P.pitch, P.yaw, 0, 'YXZ');
+    if (mode === 'walk' && !crossEl.hidden && now - hotT > 120) { hotT = now; crossEl.classList.toggle('hot', !!pickAt(0, 0)); }
+  } else {
+    const s = SP[TOUR[tourIdx]], c = s.cam;
+    let u = Math.min(1, (now - t0) / DWELL); if (!playing) u = Math.min(u, .5);
+    const e = reduced ? 0 : (1 - Math.cos(u * Math.PI)) / 2;
+    camera.position.set(c.from[0] + (c.end[0] - c.from[0]) * e, s.y + c.from[1] + (c.end[1] - c.from[1]) * e, c.from[2] + (c.end[2] - c.from[2]) * e);
+    camera.lookAt(c.to[0], s.y + c.to[1], c.to[2]);
+    const sway = reduced ? 0 : Math.sin(now / 5200) * .14;
+    camera.rotateY(yawOff + sway); camera.rotateX(-pitchOff - (innerHeight > innerWidth ? .2 : 0));
+    if (playing && now - t0 > DWELL && !transitioning) go(tourIdx + 1);
+  }
   renderer.render(scene, camera);
-  if (playing && !drag && now - t0 > DWELL && !transitioning) go(idx + 1);
   requestAnimationFrame(frame);
 }
-setRoom(0);
-// Compile every room once while the intro is up, so the first visits don't stutter.
-ROOMS.forEach((r) => (r.group.visible = true)); renderer.compile(scene, camera); ROOMS.forEach((r, i) => (r.group.visible = i === idx));
+
+// Start on the North Lawn by the fence, facing the North Portico (yaw π faces south, +z).
+P.x = 0; P.z = -70; P.y = ST; P.yaw = Math.PI; P.pitch = .06;
+enterSpace(NORTH);
+SPACES.forEach((s) => (s.group.visible = true)); renderer.compile(scene, camera); levelVisibility(NORTH);
 requestAnimationFrame(frame);
 
-begin.disabled = false; begin.textContent = 'Begin the tour';
-begin.onclick = () => {
-  $('intro').hidden = true; $('placard').hidden = false; $('controls').hidden = false; $('hint').hidden = false;
-  setRoom(0); setTimeout(() => ($('hint').style.opacity = 0), 6000);
-};
-if (location.hash === '#tour') begin.click();
-window.__redacted = { ROOMS, go };
+begin.disabled = false; $('begin-tour').disabled = false; begin.textContent = 'Walk in';
+const start = (m) => { $('intro').hidden = true; $('placard').hidden = false; $('controls').hidden = false; setMode(m); if (m === 'walk' && !coarse) { try { canvas.requestPointerLock(); } catch (_) {} } };
+begin.onclick = () => start('walk');
+$('begin-tour').onclick = () => start('tour');
+if (coarse) $('keys').textContent = 'Left thumb to walk · right thumb to look · tap anything to inspect';
+if (location.hash === '#tour') start('tour');
+if (location.hash === '#walk') start('walk');
+window.__redacted = { SPACES, SP, P, go, setMode, pickAt, showInfo, setTourRoom, supportAt, setFigure, openComputer, POOL };
 </script>
