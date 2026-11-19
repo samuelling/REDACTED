@@ -34,6 +34,10 @@ MODELS = [
 ]
 
 
+# Small props that ship with far more detail than a room full of them needs.
+HEAVY = {"potted_plant_01", "cardboard_box_01", "Drill_01", "ladder_sectioned_01"}
+
+
 def get(url: str) -> bytes:
     req = urllib.request.Request(url, headers={"User-Agent": "redacted-art-project"})
     with urllib.request.urlopen(req, timeout=120) as r:
@@ -64,7 +68,7 @@ def main(raw_dir: str) -> None:
         subprocess.run(
             ["gltf-transform", "optimize", str(gltf_path), str(glb),
              "--compress", "quantize", "--texture-compress", "webp", "--texture-size", "512",
-             "--simplify-ratio", "0.35", "--simplify-error", "0.002"],
+             "--simplify-ratio", "0.08" if mid in HEAVY else "0.35", "--simplify-error", "0.01" if mid in HEAVY else "0.002"],
             check=True, capture_output=True,
         )
         print(f"{mid:32s} {glb.stat().st_size / 1024:8.0f} KB")

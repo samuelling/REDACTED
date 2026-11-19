@@ -348,7 +348,7 @@ const C = {
   blue: mat(0x1f4f9a, 0.45, 0.2), alu: mat(0xc6cacf, 0.35, 0.8), terracotta: mat(0xb4552c, 0.85), leaf: mat(0x3d7a36, 0.8),
   piano: mat(0x0f0f11, 0.12, 0.1), wood: mat(0x5b3a22, 0.6), pink: mat(0xe5b8b2, 0.5), skyblue: mat(0x4a78b5, 0.55),
   glass: mat(0x9fd3e8, 0.08, 0, { transparent: true, opacity: 0.55 }), screen: mat(0x0d0f13, 0.15, 0.2),
-  door: mat(0xf1ede2, 0.5), desk: mat(0x3f2414, 0.45), stone: mat(0xd9d3c4, 0.6), grass: mat(0x24361f, 0.95),
+  door: mat(0xf1ede2, 0.5), desk: mat(0x3f2414, 0.45), stone: mat(0xd9d3c4, 0.6), grass: mat(0x3f5f2e, 0.95),
 };
 
 // ---------------------------------------------------------------- object prototypes (base at y=0, front faces +z)
@@ -418,8 +418,8 @@ const FRAME = merge([
   box(1, .1, .05, 0, .45, .025), box(1, .1, .05, 0, -.45, .025), box(.1, .8, .05, -.45, 0, .025), box(.1, .8, .05, .45, 0, .025),
   box(.86, .035, .075, 0, .385, .04), box(.86, .035, .075, 0, -.385, .04), box(.035, .74, .075, -.385, 0, .04), box(.035, .74, .075, .385, 0, .04),
   box(1.04, .025, .03, 0, .5, .015), box(1.04, .025, .03, 0, -.5, .015), box(.025, 1.04, .03, -.5, 0, .015), box(.025, 1.04, .03, .5, 0, .015),
-  ...[[-1, -1], [-1, 1], [1, -1], [1, 1]].map(([x, y]) => sph(.06, x * .45, y * .45, .05, 1, 1, .6)),
-  sph(.05, 0, .47, .05, 1.6, .8, .6),
+  ...[[-1, -1], [-1, 1], [1, -1], [1, 1]].map(([x, y]) => new THREE.IcosahedronGeometry(.06, 0).applyMatrix4(mat4(x * .45, y * .45, .05, 0, 0, 0, 1, 1, .6))),
+  new THREE.IcosahedronGeometry(.05, 0).applyMatrix4(mat4(0, .47, .05, 0, 0, 0, 1.6, .8, .6)),
 ]);
 const bulbMat = glow(0xffe6b0, 2.2);
 // The black pane that fills a withheld frame.
@@ -1263,7 +1263,8 @@ function cameraFor(s) {
 }
 
 // ---------------------------------------------------------------- outside: the Executive Residence at night, north front
-const OUT = { x0: -26.3, x1: 26.6, z0: -16.3, z1: 10.5, top: ST + 10.6 };
+const OUT = { x0: -48.3, x1: 46.3, z0: -16.3, z1: 22.3, top: ST + 10.6 };
+const WING = { x0: 46.3, x1: 146.3, z0: -12.3, z1: 18.3, top: ST + 13.3 };
 const NORTH = { id: 'north_lawn', name: 'The North Lawn', floor: 'Outside, north front', exterior: true, y: ST };
 function buildExterior() {
   const g = new THREE.Group(); scene.add(g); NORTH.group = g;
@@ -1272,7 +1273,7 @@ function buildExterior() {
   const glass = mat(0x2b2418, .2, 0, { emissive: 0xffc77a, emissiveIntensity: .55 });
   const darkGlass = mat(0x0d1016, .1, .3);
   // Grade: the north lawn sits at State Floor height; the south lawn at the Ground Floor.
-  const lawnTop = new THREE.Mesh(new THREE.BoxGeometry(130, ST, 70), C.grass); lawnTop.position.set(0, ST / 2 - .001, -16.3 - 35); g.add(lawnTop);
+  const lawnTop = new THREE.Mesh(new THREE.BoxGeometry(260, ST, 70), C.grass); lawnTop.position.set(40, ST / 2 - .001, -16.3 - 35); g.add(lawnTop);
   const south = new THREE.Mesh(new THREE.PlaneGeometry(140, 70).rotateX(-H), C.grass); south.position.set(-10, -.02, 25); g.add(south);
   const drive = new THREE.Mesh(new THREE.RingGeometry(14, 19, 64, 1, Math.PI, Math.PI).rotateX(-H), mat(0x8a8478, .85)); drive.position.set(0, ST + .01, -27); g.add(drive);
   const walk = new THREE.Mesh(new THREE.PlaneGeometry(4, 40).rotateX(-H), mat(0x8a8478, .85)); walk.position.set(0, ST + .012, -46); g.add(walk);
@@ -1281,6 +1282,9 @@ function buildExterior() {
   const walls = [];
   const face = (w, h, x, y, z, ry) => { const pg = new THREE.PlaneGeometry(w, h); const uv = pg.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * w / 2.4, uv.getY(i) * h / 2.4); return pg.applyMatrix4(mat4(x, y, z, 0, ry, 0)); };
   walls.push(face(W, OUT.top, cx, OUT.top / 2, OUT.z0, Math.PI), face(W, OUT.top, cx, OUT.top / 2, OUT.z1, 0), face(D, OUT.top, OUT.x0, OUT.top / 2, cz, -H), face(D, OUT.top, OUT.x1, OUT.top / 2, cz, H));
+  { const WW = WING.x1 - WING.x0, WD = WING.z1 - WING.z0, wx = (WING.x0 + WING.x1) / 2, wz = (WING.z0 + WING.z1) / 2;
+    walls.push(face(WW, WING.top, wx, WING.top / 2, WING.z0, Math.PI), face(WW, WING.top, wx, WING.top / 2, WING.z1, 0), face(WD, WING.top, WING.x1, WING.top / 2, wz, H));
+    const wr = new THREE.Mesh(new THREE.BoxGeometry(WW, .3, WD), trim); wr.position.set(wx, WING.top, wz); g.add(wr); }
   g.add(new THREE.Mesh(merge(walls), facade));
   const tr = [], panes = [], dark = [];
   const windowAt = (x, y, z, ry, w = 1.5, h = 2.6, ped = 0) => {
@@ -1302,14 +1306,16 @@ function buildExterior() {
   windowAt(0, ST + 7.1, OUT.z0 - .01, Math.PI, 1.8, 2.2);
   // South front: three storeys.
   for (let x = OUT.x0 + 3; x < OUT.x1 - 2; x += 4.1) for (const y of [1.8, ST + 2.1, ST + 7.1]) windowAt(x, y, OUT.z1 + .01, 0, 1.4, y < 3 ? 2 : 2.6, y > 5 && y < 8 ? 1 : 0);
-  for (const z of [-11, -5, 1, 7]) for (const y of [ST + 2.1, ST + 7.1]) { windowAt(OUT.x0 - .01, y, z, -H, 1.4, 2.4); windowAt(OUT.x1 + .01, y, z, H, 1.4, 2.4); }
+  for (const z of [-11, -5, 1, 7, 13, 19]) for (const y of [ST + 2.1, ST + 7.1]) windowAt(OUT.x0 - .01, y, z, -H, 1.4, 2.4);
+  // The East Wing's tall arched windows on its north front.
+  for (let x = WING.x0 + 5; x < WING.x1 - 3; x += 6) windowAt(x, ST + 6.5, WING.z0 - .01, Math.PI, 2.6, 6.5, 2);
   // Cornice, roof balustrade, string course.
   const ring = (y, hh, dd) => { tr.push(box(W + dd * 2, hh, dd, cx, y, OUT.z0 - dd / 2 + .05), box(W + dd * 2, hh, dd, cx, y, OUT.z1 + dd / 2 - .05), box(dd, hh, D, OUT.x0 - dd / 2 + .05, y, cz), box(dd, hh, D, OUT.x1 + dd / 2 - .05, y, cz)); };
   ring(OUT.top - .25, .5, .7); ring(ST + .25, .25, .3); ring(ST + 4.9, .3, .35);
   ring(OUT.top + .9, .14, .5); ring(OUT.top + .1, .16, .45);
   for (let x = OUT.x0; x <= OUT.x1; x += .36) for (const z of [OUT.z0 - .2, OUT.z1 + .2]) tr.push(cyl(.06, .08, .7, x, OUT.top + .48, z, 0, 0, 0, 8));
   for (let z = OUT.z0; z <= OUT.z1; z += .36) for (const x of [OUT.x0 - .2, OUT.x1 + .2]) tr.push(cyl(.06, .08, .7, x, OUT.top + .48, z, 0, 0, 0, 8));
-  g.add(new THREE.Mesh(new THREE.BoxGeometry(W, .3, D), trim)).position.set(cx, OUT.top, cz);
+  { const roof = new THREE.Mesh(new THREE.BoxGeometry(W, .3, D), trim); roof.position.set(cx, OUT.top, cz); g.add(roof); }
   // The North Portico: Ionic columns, entablature, pediment, lantern.
   const pz0 = OUT.z0 - 10.5, pz1 = OUT.z0, ph = OUT.top - ST - 1.1;
   tr.push(box(17, .45, 10.8, 0, ST + .22, (pz0 + pz1) / 2));
@@ -1329,22 +1335,23 @@ function buildExterior() {
   const porchLight = new THREE.PointLight(0xffd8a0, 60, 0, 2); porchLight.position.set(0, ST + ph - 1.8, (pz0 + pz1) / 2); g.add(porchLight);
   // Iron fence along Pennsylvania Avenue.
   const fence = [];
-  for (let x = -60; x <= 60; x += .22) fence.push(cyl(.02, .02, 2.2, x, ST + 1.1, -78, 0, 0, 0, 6));
-  fence.push(box(120, .06, .06, 0, ST + 2.0, -78), box(120, .06, .06, 0, ST + .3, -78));
+  for (let x = -80; x <= 160; x += .3) fence.push(cyl(.02, .02, 2.2, x, ST + 1.1, -78, 0, 0, 0, 5));
+  fence.push(box(240, .06, .06, 40, ST + 2.0, -78), box(240, .06, .06, 40, ST + .3, -78));
   g.add(new THREE.Mesh(merge(fence), mat(0x111214, .5, .6)));
   // Walking: the lawn, the portico; walls with the front door open.
-  REGIONS.push({ space: NORTH, inside: (x, z) => x >= -60 && x <= 60 && z >= -77.5 && z <= -16, y: () => ST });
+  REGIONS.push({ space: NORTH, inside: (x, z) => x >= -80 && x <= 160 && z >= -77.5 && z <= -16, y: () => ST });
   addSeg(OUT.x0, OUT.z0, -1.1, OUT.z0, 0, OUT.top); addSeg(1.1, OUT.z0, OUT.x1, OUT.z0, 0, OUT.top);
   addSeg(-1.1, OUT.z0, -1.1, -16, ST, ST + 4); addSeg(1.1, OUT.z0, 1.1, -16, ST, ST + 4);
-  addSeg(-60, -16, OUT.x0, -16, ST - 1, ST + 3); addSeg(OUT.x1, -16, 60, -16, ST - 1, ST + 3);
-  addSeg(-60, -77.5, 60, -77.5, ST - 1, ST + 3); addSeg(-60, -77.5, -60, -16, ST - 1, ST + 3); addSeg(60, -77.5, 60, -16, ST - 1, ST + 3);
+  addSeg(-80, -16, OUT.x0, -16, ST - 1, ST + 3); addSeg(OUT.x1, -16, 160, -16, ST - 1, ST + 3);
+  addSeg(-80, -77.5, 160, -77.5, ST - 1, ST + 3); addSeg(-80, -77.5, -80, -16, ST - 1, ST + 3); addSeg(160, -77.5, 160, -16, ST - 1, ST + 3);
   const fnt = new THREE.Mesh(merge([cyl(3, 3.2, .6, 0, ST + .3, -40, 0, 0, 0, 40)]), mat(0xd9d3c4, .6)); g.add(fnt);
   const water = new THREE.Mesh(new THREE.CircleGeometry(2.8, 40).rotateX(-H), mat(0x1c2a38, .05, .2, { emissive: 0x0c1520, emissiveIntensity: 1 })); water.position.set(0, ST + .58, -40); g.add(water);
   CIRCLES.push({ x: 0, z: -40, r: 3.2, y0: ST, y1: ST + 1 });
 }
 buildExterior();
 scene.background = new THREE.Color(0x0b1220);
-scene.fog = new THREE.Fog(0x0b1220, 60, 150);
+scene.fog = new THREE.Fog(0x0b1220, 70, 170);
+{ const moon = new THREE.DirectionalLight(0xb8c8ff, .9); moon.position.set(-40, 60, -90); NORTH.group.add(moon); NORTH.group.add(new THREE.HemisphereLight(0x5a6c99, 0x1b2416, .9)); }
 
 for (let i = 0; i < SPACES.length; i++) { buildSpace(SPACES[i]); status(`Gilding the rooms… ${i + 1}/${SPACES.length}`); await new Promise((r) => requestAnimationFrame(r)); }
 
@@ -1700,5 +1707,5 @@ $('begin-tour').onclick = () => start('tour');
 if (coarse) $('keys').textContent = 'Left thumb to walk · right thumb to look · tap anything to inspect';
 if (location.hash === '#tour') start('tour');
 if (location.hash === '#walk') start('walk');
-window.__redacted = { SPACES, SP, P, go, setMode, pickAt, showInfo, setTourRoom, supportAt, setFigure, openComputer, POOL };
+window.__redacted = { SPACES, SP, P, go, setMode, pickAt, showInfo, setTourRoom, supportAt, setFigure, openComputer, POOL, renderer, scene, camera, THREE };
 </script>
