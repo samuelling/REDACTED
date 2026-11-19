@@ -242,6 +242,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
 import * as A from './arch.js';
+import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 
 const $ = (id) => document.getElementById(id);
 function fail(msg) { const d = document.createElement('div'); d.id = 'err'; d.textContent = msg; document.body.appendChild(d); }
@@ -426,18 +427,68 @@ function figureGeo(kind) {
   return merge(g);
 }
 const FIG = { stand: figureGeo('stand'), stand2: figureGeo('stand2'), sit: figureGeo('sit') };
-// Sculpted bodies (Blender Studio human base meshes, CC0), posed for this piece; the capsules above are the fallback.
-const FIG_STAND = [], FIG_SIT = [];
-await Promise.all(['m_stand', 'f_stand', 'm_clasp', 'f_clasp', 'm_fold', 'f_fold', 'm_sit', 'f_sit'].map(async (k) => {
-  try {
-    const g = await new GLTFLoader().loadAsync(`figures/figure_${k}.json`); let geo = null;
-    g.scene.updateMatrixWorld(true); g.scene.traverse((o) => { if (o.isMesh && !geo) geo = o.geometry.clone().applyMatrix4(o.matrixWorld); });
-    if (!geo) return; geo.computeVertexNormals(); FIG[k] = geo; (k.endsWith('sit') ? FIG_SIT : FIG_STAND).push(k);
-  } catch (e) { console.warn('figure failed', k, e); }
+// The redacted: Blender Studio human base meshes (CC0), rigged for this piece and driven by CMU motion capture
+// (slow walk, standing, sitting in a chair). A woman, a man, and a body between the two for those whose sex the files do not give.
+const BODY = {};
+let FIGINFO = {}, SEXES = null;
+try { FIGINFO = await (await fetch('figures/figures.json')).json(); } catch (e) {}
+try { SEXES = await (await fetch('figures/sexes.json')).json(); } catch (e) {}
+await Promise.all(['m', 'f', 'u'].map(async (t) => {
+  try { const g = await new GLTFLoader().loadAsync(`figures/figure_${t}.json`); BODY[t] = { scene: g.scene, clips: Object.fromEntries(g.animations.map((c) => [c.name, c])) }; }
+  catch (e) { console.warn('figure failed', t, e); }
 }));
-FIG_STAND.sort(); FIG_SIT.sort();
-const pickStand = () => FIG_STAND.length ? FIG_STAND[Math.floor(rand() * FIG_STAND.length)] : (rand() < .35 ? 'stand2' : 'stand');
-const pickSit = () => FIG_SIT.length ? FIG_SIT[Math.floor(rand() * FIG_SIT.length)] : 'sit';
+// Skinned version of the void material.
+const figureSkinMat = new THREE.ShaderMaterial({
+  uniforms: { rim: { value: new THREE.Color(0x3a3530) } },
+  vertexShader: `varying vec3 vN; varying vec3 vV;
+    #include <common>
+    #include <skinning_pars_vertex>
+    void main() {
+      #include <skinbase_vertex>
+      #include <beginnormal_vertex>
+      #include <skinnormal_vertex>
+      #include <begin_vertex>
+      #include <skinning_vertex>
+      vec4 wp = modelMatrix * vec4(transformed, 1.0); vN = normalize(mat3(modelMatrix) * objectNormal); vV = normalize(cameraPosition - wp.xyz); gl_Position = projectionMatrix * viewMatrix * wp; }`,
+  fragmentShader: `uniform vec3 rim; varying vec3 vN; varying vec3 vV;
+    void main() { float f = pow(1.0 - abs(dot(normalize(vN), normalize(vV))), 3.0); gl_FragColor = vec4(rim * f * 0.85, 1.0); }`,
+});
+// Who each figure is, as far as the files say: women, men and unknown in proportion to the redactions (largest remainder).
+const SEX_QUEUE = [];
+{
+  const total = Math.round((inv.redaction_fragments || 0) / 1000);
+  const parts = SEXES ? ['female', 'male', 'unknown'].map((k) => [k, SEXES[k] || 0]) : [['unknown', 1]];
+  const sum = parts.reduce((a, [, v]) => a + v, 0) || 1;
+  const raw = parts.map(([k, v]) => [k, total * v / sum]); const base = raw.map(([k, v]) => [k, Math.floor(v), v - Math.floor(v)]);
+  let left = total - base.reduce((a, [, n]) => a + n, 0); base.slice().sort((p, q) => q[2] - p[2]).forEach((b) => { if (left > 0) { b[1]++; left--; } });
+  for (const [k, n] of base) for (let i = 0; i < n; i++) SEX_QUEUE.push(k);
+  for (let i = SEX_QUEUE.length - 1; i > 0; i--) { const j = Math.floor(rand() * (i + 1)); [SEX_QUEUE[i], SEX_QUEUE[j]] = [SEX_QUEUE[j], SEX_QUEUE[i]]; }
+}
+const BODY_OF = { female: 'f', male: 'm', unknown: 'u' };
+const WALKERS = [];
+const proxyMat = new THREE.MeshBasicMaterial({ visible: false });
+const PROXY = new THREE.CylinderGeometry(.24, .24, 1.7, 8).translate(0, .85, 0);
+const SIT_PROXY = new THREE.BoxGeometry(.5, 1.3, .7).translate(0, .65, 0);
+function makeFigure(group, x, z, ry, sc, state) {
+  const sex = SEX_QUEUE.length ? SEX_QUEUE.shift() : 'unknown';
+  const B = BODY[BODY_OF[sex]] || BODY.u || BODY.m || BODY.f;
+  if (!B) return null;
+  const root = SkeletonUtils.clone(B.scene);
+  root.traverse((o) => { if (o.isMesh) { o.material = figureSkinMat; o.userData.keep = true; } });
+  const meta = { kind: 'figure', sex };
+  const proxy = new THREE.Mesh(state === 'sit' ? SIT_PROXY : PROXY, proxyMat); proxy.userData.meta = meta; proxy.userData.keep = true; root.add(proxy); PICK.push(proxy);
+  root.position.set(x, 0, z); root.rotation.y = ry; root.scale.setScalar(sc);
+  group.add(root);
+  const mixer = new THREE.AnimationMixer(root), acts = {};
+  for (const [k, c] of Object.entries(B.clips)) acts[k] = mixer.clipAction(c);
+  if (acts.idle) acts.idle.setLoop(THREE.LoopPingPong);
+  if (acts.sit) acts.sit.setLoop(THREE.LoopPingPong);
+  const w = { root, mixer, acts, x, z, yaw: ry, sc, state, target: null, t: rr(2, 9), speed: (FIGINFO[BODY_OF[sex]]?.walk_speed || .88), rate: rr(.74, .86) };
+  const a = acts[state === 'sit' ? 'sit' : 'idle'];
+  if (a) { a.play(); a.time = rr(0, a.getClip().duration); }
+  if (acts.walk) acts.walk.timeScale = w.rate;
+  return w;
+}
 
 // Empty gilded frame, unit size, front at +z.
 const FRAME = merge([
@@ -1492,18 +1543,21 @@ function buildSpace(s) {
   s.evidenceShown = EB.ms.length + EB.black.length;
 
   // ---------- figures: seated where there are chairs at work, the rest standing among things
-  const figs = {};
-  const addFig = (k, m) => { (figs[k] ||= []).push(m); };
+  // Places a figure can walk to, and a test for a clear straight line between two of them.
+  const solidNow = placed.slice();
+  const clearAt = (x, z) => inside(x, z, .22) && !occupied.some((o) => o.rect ? x > o.rect[0] - .3 && x < o.rect[2] + .3 && z > o.rect[1] - .3 && z < o.rect[3] + .3 : Math.hypot(x - o.x, z - o.z) < o.r + .3)
+    && !solidNow.some((q) => Math.hypot(q.x - x, q.z - z) < q.r + .28);
+  const spots = []; for (let i = 0; i < 900 && spots.length < 48; i++) { const x = rr(bx[0], bx[1]), z = rr(bx[2], bx[3]); if (clearAt(x, z) && !nearDoor(x, z, .2)) spots.push([x, z]); }
+  s.walk = { spots, clear: (x0, z0, x1, z1) => { const L = Math.hypot(x1 - x0, z1 - z0), n = Math.ceil(L / .3); for (let i = 1; i <= n; i++) { const t = i / n; if (!clearAt(x0 + (x1 - x0) * t, z0 + (z1 - z0) * t)) return false; } return true; } };
+  s.walkers = [];
   let nF = s.figures || 0;
-  for (const [x, z, ry] of seats.sort(() => rand() - .5)) { if (nF <= 0 || (s.figuresSeated = (s.figuresSeated || 0) + 1) > Math.ceil(seats.length * .55)) break; addFig(pickSit(), mat4(x, .02, z, 0, ry, 0)); nF--; }
-  for (let k = 0; k < nF; k++) {
-    const p = spot(.34, 500); if (!p) continue;
-    const sc = rr(.92, 1.08);
-    addFig(pickStand(), mat4(p.x, 0, p.z, 0, rr(0, 6.28), 0, sc, sc, sc));
-    CIRCLES.push({ x: p.x, z: p.z, r: .26, y0: s.y, y1: s.y + 1.8 });
+  for (const [x, z, ry] of seats.sort(() => rand() - .5)) { if (nF <= 0 || (s.figuresSeated = (s.figuresSeated || 0) + 1) > Math.ceil(seats.length * .55)) break; const w = makeFigure(group, x, z, ry, rr(.96, 1.04), 'sit'); if (w) { s.walkers.push(w); CIRCLES.push({ x, z, r: .3, y0: s.y, y1: s.y + 1.3 }); } nF--; }
+  for (let k = 0; k < nF && spots.length; k++) {
+    let x, z, tries = 0;
+    do { [x, z] = spots[Math.floor(rand() * spots.length)]; } while (tries++ < 30 && s.walkers.some((o) => Math.hypot(o.x - x, o.z - z) < .9));
+    const w = makeFigure(group, x + rr(-.1, .1), z + rr(-.1, .1), rr(0, 6.28), rr(.94, 1.06), 'idle'); if (w) { w.room = s; s.walkers.push(w); WALKERS.push(w); }
   }
-  for (const [kind, ms] of Object.entries(figs)) { const im = instanced(group, FIG[kind], figureMat, ms, ms.map(() => ({ kind: 'figure' }))); if (im) im.userData.keep = true; }
-  s.figuresShown = Object.values(figs).reduce((n, a) => n + a.length, 0);
+  s.figuresShown = s.walkers.length;
 }
 
 function frameMeta(f, hung) { let [n, status, desc, ord] = Array.isArray(f) ? f : [f, 'unknown', '', 0]; if (status === 'photo' && PH_REJECTED.has(n)) status = 'checked'; return { kind: 'frame', efta: n, status, desc, ord, hung, shown: status === 'photo' && !!PH.photos[n] }; }
@@ -1888,8 +1942,10 @@ function showInfo(meta, spaceName) {
   } else if (meta.kind === 'figure') {
     $('i-kind').textContent = 'Redaction';
     title.textContent = 'Redacted'; title.classList.add('black');
+    add('Body', { female: 'A woman', male: 'A man', unknown: 'Not known' }[meta.sex] || 'Not known');
     add('Stands for', '1,000 redaction fragments'); add('In the release', `${(inv.redaction_fragments || 0).toLocaleString()} fragments, ${inv.figureTotal} figures`); add('Source', 'kabasshouse/epstein-data', 'https://huggingface.co/datasets/kabasshouse/epstein-data');
-    note.hidden = false; note.textContent = 'Only the count of redactions was used. Nothing beneath them was read.';
+    note.hidden = false; note.textContent = (meta.sex === 'unknown' ? 'The files do not say, so the body is halfway between the two. ' : `Known only from what the files leave readable: an honorific with its name blacked out, a stand-in name, or a victim's statement. `)
+      + 'Only the count of redactions and the unredacted text around them were used; nothing beneath them was read. Moves with motion capture from the CMU Graphics Lab database.';
   } else {
     const ids = meta.model ? [meta.model] : (FURNISHING[meta.key] || ['', []])[1];
     const name = (FURNISHING[meta.key] || [])[0] || (meta.key || 'furnishing').replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase());
@@ -1950,6 +2006,7 @@ function collide(x, z, y) {
       const px = s.x1 + ex * t, pz = s.z1 + ez * t, dx = x - px, dz = z - pz, d = Math.hypot(dx, dz);
       if (d < r && d > 1e-6) { x = px + dx / d * r; z = pz + dz / d * r; }
     }
+    for (const w of NEAR_WALKERS) { const dx = x - w.x, dz = z - w.z, d = Math.hypot(dx, dz), m = .26 + r; if (d < m && d > 1e-6 && Math.abs(w.room.y - y) < 1) { x = w.x + dx / d * m; z = w.z + dz / d * m; } }
     for (const c of CIRCLES) {
       if (c.y1 < y0 || c.y0 > y1) continue;
       const dx = x - c.x, dz = z - c.z, d = Math.hypot(dx, dz), m = c.r + r;
@@ -2144,6 +2201,46 @@ function setMode(m) {
 $('mode').onclick = () => setMode(mode === 'tour' ? 'walk' : 'tour');
 $('figure').onclick = () => setFigure(!figureMode);
 
+// ---------------------------------------------------------------- the redacted, walking
+// Each wanders slowly between clear places in its room, pausing to stand; those at desks stay seated.
+// Only the rooms being drawn are animated.
+const NEAR_WALKERS = [];
+const fade = (w, to, d = .6) => { const from = w.cur && w.acts[w.cur]; const a = w.acts[to]; if (!a || from === a) return; a.reset(); a.play(); if (from) from.crossFadeTo(a, d, false); w.cur = to; };
+function pickTarget(w) {
+  const W = w.room.walk; if (!W || !W.spots.length) return null;
+  for (let i = 0; i < 14; i++) { const [x, z] = W.spots[Math.floor(Math.random() * W.spots.length)]; const d = Math.hypot(x - w.x, z - w.z); if (d > 1.6 && d < 14 && W.clear(w.x, w.z, x, z)) return [x, z]; }
+  return null;
+}
+function updateWalkers(dt) {
+  NEAR_WALKERS.length = 0;
+  for (const s of SPACES) {
+    if (!s.walkers || !s.group.visible) continue;
+    for (const w of s.walkers) {
+      w.mixer.update(dt);
+      if (w.state === 'sit') continue;
+      NEAR_WALKERS.push(w);
+      if (!w.cur) w.cur = 'idle';
+      const toPlayer = Math.hypot(P.x - w.x, P.z - w.z);
+      if (w.state === 'idle') {
+        w.t -= dt;
+        if (w.t <= 0) { const t = pickTarget(w); if (t) { w.target = t; w.state = 'walk'; fade(w, 'walk'); } else w.t = rr(2, 5); }
+        continue;
+      }
+      // walking: turn toward the target, step forward at the clip's own pace (so the feet do not slide)
+      const dx = w.target[0] - w.x, dz = w.target[1] - w.z, d = Math.hypot(dx, dz);
+      let want = Math.atan2(dx, dz), diff = Math.atan2(Math.sin(want - w.yaw), Math.cos(want - w.yaw));
+      w.yaw += Math.sign(diff) * Math.min(Math.abs(diff), dt * 1.5);
+      const ahead = (P.x - w.x) * Math.sin(w.yaw) + (P.z - w.z) * Math.cos(w.yaw);
+      const blocked = mode === 'walk' && toPlayer < 1.1 && ahead > 0;
+      const others = s.walkers.some((o) => o !== w && o.state !== 'sit' && Math.hypot(o.x - w.x, o.z - w.z) < .7 && Math.hypot(o.x - w.x, o.z - w.z) > .35 && ((o.x - w.x) * Math.sin(w.yaw) + (o.z - w.z) * Math.cos(w.yaw)) > 0);
+      if (d < .35 || blocked || others) { w.state = 'idle'; w.t = blocked || others ? rr(1.5, 3) : rr(3, 10); fade(w, 'idle', .7); continue; }
+      const v = w.speed * w.rate * w.sc * Math.max(0, Math.cos(diff)) * (w.acts.walk ? w.acts.walk.getEffectiveWeight() : 1);
+      w.x += Math.sin(w.yaw) * v * dt; w.z += Math.cos(w.yaw) * v * dt;
+      w.root.position.x = w.x; w.root.position.z = w.z; w.root.rotation.y = w.yaw;
+    }
+  }
+}
+
 // ---------------------------------------------------------------- frame loop
 function resize() { const w = innerWidth, h = innerHeight; renderer.setSize(w, h, false); camera.aspect = w / h; camera.fov = w < h ? 76 : 66; camera.updateProjectionMatrix(); }
 addEventListener('resize', resize); resize();
@@ -2151,6 +2248,7 @@ let last = performance.now();
 const crossEl = $('cross'); let hotT = 0;
 function frame(now) {
   const dt = Math.min(.05, (now - last) / 1000); last = now;
+  updateWalkers(dt);
   if (mode === 'walk' || mode === 'idle') {
     if (mode === 'walk') step(dt);
     camera.position.set(P.x, P.y + P.eye + (mode === 'walk' ? Math.sin(now / 180) * .012 * Math.min(1, Math.hypot(stick.x, stick.y) + (keys.size ? 1 : 0)) : 0), P.z);
@@ -2183,5 +2281,5 @@ $('begin-tour').onclick = () => start('tour');
 if (coarse) $('keys').textContent = 'Left thumb to walk · right thumb to look · tap anything to inspect';
 if (location.hash === '#tour') start('tour');
 if (location.hash === '#walk') start('walk');
-window.__redacted = { enterSpace, get current() { return current; }, SPACES, SP, P, go, setMode, pickAt, showInfo, setTourRoom, supportAt, setFigure, openComputer, POOL, renderer, scene, camera, THREE };
+window.__redacted = { updateWalkers, WALKERS, enterSpace, get current() { return current; }, SPACES, SP, P, go, setMode, pickAt, showInfo, setTourRoom, supportAt, setFigure, openComputer, POOL, renderer, scene, camera, THREE };
 </script>

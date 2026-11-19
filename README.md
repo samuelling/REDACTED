@@ -42,8 +42,14 @@ take the corridor photographs.
   nudity*, and are never described. Only screened photographs are ever fetched,
   and `scripts/build_photos.py` runs NudeNet and OpenCV's people detector over
   them before use; anything flagged stays black.
-- **Black figures**: one per 1,000 redaction fragments in the release (191).
-  Counts only; nothing beneath a redaction is read.
+- **Black figures**: one per 1,000 redaction fragments in the release (191). They walk
+  slowly about their rooms, stop and stand, or sit at the desks. Each is a woman, a man or,
+  where the files do not say, a body halfway between the two, in proportion to what the
+  readable text gives (`scripts/build_figures.py`): an honorific left standing beside a
+  blacked-out name, a stand-in name ("Jane Doe", "Minor Victim"), or a victim statement
+  (the victims in this case were women and girls). That comes to 6 women, no men and 185
+  unknown: the release almost never says. Nothing beneath a redaction is read; the
+  redactions table's recovered-text and names columns are never opened.
 - **Evidence**: the 112 items in the FBI evidence-recovery log appear as sealed,
   tagged bags in the room where they were found. Item types only; adult items,
   photographs and personal papers are sealed in black bags and not described.
@@ -80,6 +86,11 @@ Portico column and entablature (sheet 76), the typical first-floor windows (shee
 north entrance (sheet 79). Every surveyed dimension is kept and scaled by the same factor as
 the enlarged rooms.
 
+Motion capture: [CMU Graphics Lab Motion Capture Database](http://mocap.cs.cmu.edu) (free for
+research and commercial use), BVH conversion by Bruce Hahne via
+[meshula/cmu-mocap](https://github.com/meshula/cmu-mocap). Bodies: the Blender Studio Human Base
+Meshes bundle (CC0).
+
 Models, surfaces and the ballroom HDRI: [Poly Haven](https://polyhaven.com) (CC0),
 resized and recompressed; the model list is in `scripts/fetch_models.py`. Everything
 else is built in code. three.js 0.160 from jsDelivr.
@@ -91,9 +102,13 @@ else is built in code. three.js 0.160 from jsDelivr.
   site's age check, run through NudeNet and OpenCV's people detector (315 flagged and
   withheld), and the remaining 1,416 packed into thumbnail and enlargement sheets in
   `site/photos/`. No one viewed them during processing.
-- `scripts/pose_figures.py`: the redacted figures are the Blender Studio Human Base
-  Meshes (CC0, realistic male and female), bent at the joints into standing, hands
-  clasped, arms folded and seated poses, decimated to 7,000 triangles.
+- `scripts/rig_figures.py` (run with Blender's Python): the redacted figures are the
+  Blender Studio Human Base Meshes (CC0, realistic male and female, plus their average),
+  rigged with the motion-capture skeleton and driven by the CMU Graphics Lab Motion
+  Capture Database (Bruce Hahne's BVH conversion): 07_04 slow walk, 77_02 standing and
+  114_05 sitting in a chair. One stride is cut from the walk and run in place, and the
+  page moves each figure at the stride's own speed so the feet do not slide.
+  (`scripts/pose_figures.py`, the earlier static poses, is no longer used.)
 
 ## The architecture kit (`site/arch.js`)
 
