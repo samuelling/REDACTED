@@ -30,7 +30,7 @@ pip install duckdb
 npm i -g @gltf-transform/cli
 python scripts/build_rooms.py documents-00000.parquet              # -> data/rooms.json (git-ignored)
 python scripts/build_inventory.py recovered_redactions-00000.parquet  # -> site/inventory.json
-python scripts/fetch_models.py /tmp/polyhaven                       # -> site/models/*.glb
+python scripts/fetch_models.py /tmp/polyhaven && python scripts/glb_to_json.py  # -> site/models/*.json
 ```
 
 Only object categories and counts reach `site/`. No OCR text, names or addresses

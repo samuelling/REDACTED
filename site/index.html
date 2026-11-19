@@ -414,7 +414,7 @@ const MD = {};
 let loaded = 0;
 await Promise.all(MODEL_IDS.map(async (id) => {
   try {
-    const g = await loader.loadAsync(`models/${id}.glb`);
+    const g = await loader.loadAsync(`models/${id}.json`);
     g.scene.updateMatrixWorld(true);
     const byMat = new Map();
     g.scene.traverse((o) => {
