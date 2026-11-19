@@ -73,6 +73,13 @@ python scripts/build_photos.py PDF_DIR                       # screened photogra
 Data: [kabasshouse/epstein-data](https://huggingface.co/datasets/kabasshouse/epstein-data)
 (CC-BY-4.0), OCR and scene descriptions of the DOJ's Epstein Files Transparency Act release.
 
+Architecture: built in code (`site/arch.js`) to the Historic American Buildings Survey
+measured drawings of the White House, [HABS DC-37](https://www.loc.gov/item/dc0402/)
+(Library of Congress, public domain): the first-floor plan, the north elevations, the North
+Portico column and entablature (sheet 76), the typical first-floor windows (sheet 82) and the
+north entrance (sheet 79). Every surveyed dimension is kept and scaled by the same factor as
+the enlarged rooms.
+
 Models, surfaces and the ballroom HDRI: [Poly Haven](https://polyhaven.com) (CC0),
 resized and recompressed; the model list is in `scripts/fetch_models.py`. Everything
 else is built in code. three.js 0.160 from jsDelivr.
@@ -87,3 +94,16 @@ else is built in code. three.js 0.160 from jsDelivr.
 - `scripts/pose_figures.py`: the redacted figures are the Blender Studio Human Base
   Meshes (CC0, realistic male and female), bent at the joints into standing, hands
   clasped, arms folded and seated poses, decimated to 7,000 triangles.
+
+## The architecture kit (`site/arch.js`)
+
+Classical mouldings are drawn as profiles (fillets, ovolos, cavettos, cymas, tori, scotias)
+and swept along the walls, so cornices, bases, chair rails, architraves and pediments are
+curved, with crisp corners. Columns are turned with entasis, with Attic bases and Doric,
+Ionic (four angled volutes and festoons, as at the North Portico) or Corinthian capitals.
+Pilasters are fluted, ceilings are coffered or panelled, and windows have deep reveals with
+panelled linings, glazing bars, curtains and swagged pelmets.
+
+The Entrance Hall's diagonal checkerboard floor, the veined marble of the halls and the
+boiserie and chimneypieces of the state rooms follow 3D Warehouse models of those rooms,
+used for reference only. None of their geometry is published here.
