@@ -76,3 +76,14 @@ Data: [kabasshouse/epstein-data](https://huggingface.co/datasets/kabasshouse/eps
 Models, surfaces and the ballroom HDRI: [Poly Haven](https://polyhaven.com) (CC0),
 resized and recompressed; the model list is in `scripts/fetch_models.py`. Everything
 else is built in code. three.js 0.160 from jsDelivr.
+
+## Photographs and figures (added)
+
+- `scripts/build_photos.py` + `scripts/build_photo_sheets.py`: the 1,731 photographs
+  whose descriptions passed the text screen were fetched from justice.gov after the
+  site's age check, run through NudeNet and OpenCV's people detector (315 flagged and
+  withheld), and the remaining 1,416 packed into thumbnail and enlargement sheets in
+  `site/photos/`. No one viewed them during processing.
+- `scripts/pose_figures.py`: the redacted figures are the Blender Studio Human Base
+  Meshes (CC0, realistic male and female), bent at the joints into standing, hands
+  clasped, arms folded and seated poses, decimated to 7,000 triangles.

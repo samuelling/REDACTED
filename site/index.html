@@ -105,6 +105,7 @@
   #info h2.black { background: var(--placard-ink); color: transparent; border-radius: 1px; }
   #info .kind { font-size: .56rem; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); padding-top: .25rem; }
   #info button.x { border: 1px solid var(--placard-ink); background: transparent; color: var(--placard-ink); width: 26px; height: 26px; border-radius: 2px; cursor: pointer; font: 600 .8rem var(--mono); flex: none; }
+  #i-photo { aspect-ratio: 400 / 292; max-width: 100%; background-color: #141210; background-repeat: no-repeat; border-bottom: 1.5px solid var(--placard-ink); }
   #info dl { margin: 0; display: grid; grid-template-columns: 6.6rem 1fr; }
   #info dt, #info dd { margin: 0; padding: .3rem .6rem; border-bottom: 1px solid var(--rule); }
   #info dt { font-size: .58rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); border-right: 1px solid var(--rule); }
@@ -213,6 +214,7 @@
 
 <aside id="info" hidden aria-live="polite">
   <header><div style="flex:1;min-width:0"><div class="kind" id="i-kind">Object</div><h2 id="i-title">—</h2></div><button class="x" id="i-close" type="button" aria-label="Close">✕</button></header>
+  <div id="i-photo" hidden role="img" aria-label="The photograph"></div>
   <dl id="i-rows"></dl>
   <div class="note" id="i-note" hidden></div>
 </aside>
@@ -265,6 +267,9 @@ const status = (t) => { begin.textContent = t; };
 }
 
 let inv;
+let PH = { photos: {}, rejected: [] };
+try { PH = await (await fetch('photos/index.json')).json(); } catch (e) { console.warn('no photographs', e); }
+const PH_REJECTED = new Set(PH.rejected || []);
 try { inv = await (await fetch('gallery.json')).json(); }
 catch (e) { fail('The room inventory did not load. Reload the page to try again.'); throw e; }
 
@@ -333,7 +338,15 @@ function surfMat(id, color = 0xffffff, extra = {}) {
 }
 const gold = new THREE.MeshStandardMaterial({ color: 0xf0c25a, metalness: 1, roughness: 0.2, envMapIntensity: 1.5 });
 const goldFrame = new THREE.MeshStandardMaterial({ color: 0xf5c862, metalness: 1, roughness: 0.16, envMapIntensity: 1.7 });
-const figureMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+// The redacted: black, taking no light, with a faint rim so each body reads as a void cut out of the room.
+const figureMat = new THREE.ShaderMaterial({
+  uniforms: { rim: { value: new THREE.Color(0x3a3530) } },
+  vertexShader: `varying vec3 vN; varying vec3 vV;
+    #include <common>
+    void main() { vec4 wp = modelMatrix * instanceMatrix * vec4(position, 1.0); vN = normalize(mat3(modelMatrix * instanceMatrix) * normal); vV = normalize(cameraPosition - wp.xyz); gl_Position = projectionMatrix * viewMatrix * wp; }`,
+  fragmentShader: `uniform vec3 rim; varying vec3 vN; varying vec3 vV;
+    void main() { float f = pow(1.0 - abs(dot(normalize(vN), normalize(vV))), 3.0); gl_FragColor = vec4(rim * f * 0.85, 1.0); }`,
+});
 const matCache = new Map();
 function mat(hex, rough = 0.78, metal = 0, extra = {}) {
   const key = `${hex}|${rough}|${metal}|${JSON.stringify(extra)}`;
@@ -412,6 +425,18 @@ function figureGeo(kind) {
   return merge(g);
 }
 const FIG = { stand: figureGeo('stand'), stand2: figureGeo('stand2'), sit: figureGeo('sit') };
+// Sculpted bodies (Blender Studio human base meshes, CC0), posed for this piece; the capsules above are the fallback.
+const FIG_STAND = [], FIG_SIT = [];
+await Promise.all(['m_stand', 'f_stand', 'm_clasp', 'f_clasp', 'm_fold', 'f_fold', 'm_sit', 'f_sit'].map(async (k) => {
+  try {
+    const g = await new GLTFLoader().loadAsync(`figures/figure_${k}.json`); let geo = null;
+    g.scene.updateMatrixWorld(true); g.scene.traverse((o) => { if (o.isMesh && !geo) geo = o.geometry.clone().applyMatrix4(o.matrixWorld); });
+    if (!geo) return; geo.computeVertexNormals(); FIG[k] = geo; (k.endsWith('sit') ? FIG_SIT : FIG_STAND).push(k);
+  } catch (e) { console.warn('figure failed', k, e); }
+}));
+FIG_STAND.sort(); FIG_SIT.sort();
+const pickStand = () => FIG_STAND.length ? FIG_STAND[Math.floor(rand() * FIG_STAND.length)] : (rand() < .35 ? 'stand2' : 'stand');
+const pickSit = () => FIG_SIT.length ? FIG_SIT[Math.floor(rand() * FIG_SIT.length)] : 'sit';
 
 // Empty gilded frame, unit size, front at +z.
 const FRAME = merge([
@@ -424,6 +449,39 @@ const FRAME = merge([
 const bulbMat = glow(0xffe6b0, 2.2);
 // The black pane that fills a withheld frame.
 const PANE = new THREE.PlaneGeometry(.8, .8).translate(0, 0, .03);
+// Photographs: thumbnails packed in sheets; each instance reads its own tile.
+const PHOTO_SHEETS = [];
+async function photoSheet(i) {
+  if (!PHOTO_SHEETS[i]) {
+    let tex = await texLoader.loadAsync(`photos/atlas-${i}.jpg`).catch(() => null);
+    if (!tex) { tex = new THREE.DataTexture(new Uint8Array([120, 116, 108, 255]), 1, 1); tex.needsUpdate = true; }
+    tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
+    const m = new THREE.MeshStandardMaterial({ map: tex, roughness: .55, metalness: 0, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: .12 });
+    const [tw, th] = PH.tile || [96, 72], S = PH.sheet || 2048;
+    m.onBeforeCompile = (sh) => {
+      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute vec2 tile;')
+        .replace('#include <uv_vertex>', `#include <uv_vertex>\n  vMapUv = vec2(uv.x * ${(tw / S).toFixed(6)} + tile.x, uv.y * ${(th / S).toFixed(6)} + tile.y);\n  vEmissiveMapUv = vMapUv;`);
+    };
+    m.customProgramCacheKey = () => 'photo-tile';
+    PHOTO_SHEETS[i] = m;
+  }
+  return PHOTO_SHEETS[i];
+}
+await Promise.all([0, 1, 2].map(photoSheet));
+const PHOTO_PANE = new THREE.PlaneGeometry(.8, .8).translate(0, 0, .028);
+function addPhotoPanes(group, ms, metas) {
+  const bySheet = new Map();
+  metas.forEach((m, i) => { const t = PH.photos[m.efta]; if (!t) return; if (!bySheet.has(t[0])) bySheet.set(t[0], []); bySheet.get(t[0]).push(i); });
+  const [tw, th] = PH.tile || [96, 72], S = PH.sheet || 2048;
+  for (const [sheet, idx] of bySheet) {
+    const mat = PHOTO_SHEETS[sheet]; if (!mat) continue;
+    const geo = PHOTO_PANE.clone();
+    const tiles = new Float32Array(idx.length * 2);
+    idx.forEach((i, k) => { const [, c, r] = PH.photos[metas[i].efta]; tiles[k * 2] = c * tw / S; tiles[k * 2 + 1] = 1 - (r + 1) * th / S; });
+    geo.setAttribute('tile', new THREE.InstancedBufferAttribute(tiles, 2));
+    instanced(group, geo, mat, idx.map((i) => ms[i]), idx.map((i) => metas[i]));
+  }
+}
 const paneMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
 
 // ---------------------------------------------------------------- downloaded models (Poly Haven, CC0)
@@ -1228,28 +1286,30 @@ function buildSpace(s) {
   }
   s.unplaced = frames.length;
   instanced(group, FRAME, goldFrame, fMs, fMeta);
-  const wi = fMeta.map((m, i) => (m.status === 'person' || m.status === 'nudity' ? i : -1)).filter((i) => i >= 0);
+  const wi = fMeta.map((m, i) => (m.status === 'person' || m.status === 'nudity' || m.status === 'checked' ? i : -1)).filter((i) => i >= 0);
   instanced(group, PANE, paneMat, wi.map((i) => fMs[i]), wi.map((i) => fMeta[i]));
+  addPhotoPanes(group, fMs, fMeta);
   s.framesShown = fMs.length; s.withheld = wi.length;
   s.objectsShown = [...OB.values()].reduce((n, b) => n + b.ms.length, 0);
   s.counts = {}; for (const [key, { ms }] of OB) { const c = key.split('#')[0]; s.counts[c] = (s.counts[c] || 0) + ms.length; }
   s.evidenceShown = EB.ms.length + EB.black.length;
 
   // ---------- figures: seated where there are chairs at work, the rest standing among things
-  const figs = { stand: [], stand2: [], sit: [] };
+  const figs = {};
+  const addFig = (k, m) => { (figs[k] ||= []).push(m); };
   let nF = s.figures || 0;
-  for (const [x, z, ry] of seats.sort(() => rand() - .5)) { if (nF <= 0 || figs.sit.length >= Math.ceil(seats.length * .55)) break; figs.sit.push(mat4(x, .02, z, 0, ry, 0)); nF--; }
+  for (const [x, z, ry] of seats.sort(() => rand() - .5)) { if (nF <= 0 || (s.figuresSeated = (s.figuresSeated || 0) + 1) > Math.ceil(seats.length * .55)) break; addFig(pickSit(), mat4(x, .02, z, 0, ry, 0)); nF--; }
   for (let k = 0; k < nF; k++) {
     const p = spot(.34, 500); if (!p) continue;
     const sc = rr(.92, 1.08);
-    (rand() < .35 ? figs.stand2 : figs.stand).push(mat4(p.x, 0, p.z, 0, rr(0, 6.28), 0, sc, sc, sc));
+    addFig(pickStand(), mat4(p.x, 0, p.z, 0, rr(0, 6.28), 0, sc, sc, sc));
     CIRCLES.push({ x: p.x, z: p.z, r: .26, y0: s.y, y1: s.y + 1.8 });
   }
   for (const [kind, ms] of Object.entries(figs)) { const im = instanced(group, FIG[kind], figureMat, ms, ms.map(() => ({ kind: 'figure' }))); if (im) im.userData.keep = true; }
-  s.figuresShown = figs.stand.length + figs.stand2.length + figs.sit.length;
+  s.figuresShown = Object.values(figs).reduce((n, a) => n + a.length, 0);
 }
 
-function frameMeta(f, hung) { const [n, status, desc, ord] = Array.isArray(f) ? f : [f, 'unknown', '', 0]; return { kind: 'frame', efta: n, status, desc, ord, hung }; }
+function frameMeta(f, hung) { let [n, status, desc, ord] = Array.isArray(f) ? f : [f, 'unknown', '', 0]; if (status === 'photo' && PH_REJECTED.has(n)) status = 'checked'; return { kind: 'frame', efta: n, status, desc, ord, hung, shown: status === 'photo' && !!PH.photos[n] }; }
 
 // Tour viewpoint for a room: stand near one end of its long axis, look to the far end.
 function cameraFor(s) {
@@ -1401,13 +1461,14 @@ function showInfo(meta, spaceName) {
     if (ids) add('Model page', 'polyhaven.com', MODEL_CREDIT(ids)[0].url);
     note.hidden = false; note.textContent = 'The word above appears in the OCR text of this photograph. The object is a stand-in for what the photograph shows, not a reconstruction of it.';
   } else if (meta.kind === 'frame') {
-    const withheld = meta.status === 'person' || meta.status === 'nudity';
+    const withheld = meta.status === 'person' || meta.status === 'nudity' || meta.status === 'checked';
     $('i-kind').textContent = withheld ? 'Evidence · withheld' : meta.hung ? 'Evidence · photograph' : 'Evidence · stacked photograph';
-    title.textContent = meta.status === 'nudity' ? 'Withheld: nudity' : meta.status === 'person' ? 'Withheld: shows a person' : 'Photograph with no legible text';
+    title.textContent = meta.status === 'nudity' ? 'Withheld: nudity' : meta.status === 'person' ? 'Withheld: shows a person' : meta.status === 'checked' ? 'Withheld after an image check' : meta.shown ? 'Photograph' : 'Photograph with no legible text';
     if (withheld) title.classList.add('black');
     add('Photograph', efta(meta.efta)); add('DOJ file', 'Open the PDF', dojUrl(meta.efta)); if (meta.ord) add('Shot', `${meta.ord.toLocaleString()} of ${inv.photos.toLocaleString()} in the search`); add('Room', spaceName);
     note.hidden = false;
     if (meta.status === 'nudity') note.textContent = 'This photograph shows nudity. It is not reproduced or described here; the record is at the link above.';
+    else if (meta.status === 'checked') note.textContent = 'An automated check found a person or nudity in this photograph, so it is not shown.' + (meta.desc ? ' The dataset describes it: “' + meta.desc + '”' : '');
     else if (meta.desc) note.textContent = (meta.status === 'person' ? 'Not shown because a person is in it. ' : '') + 'The dataset describes it: “' + meta.desc + '”';
     else note.textContent = meta.status === 'person' ? 'Not shown because a person is in it. Its description is not reproduced here.' : 'No description of this photograph exists in the dataset.';
   } else if (meta.kind === 'evidence') {
@@ -1428,6 +1489,10 @@ function showInfo(meta, spaceName) {
     $('i-kind').textContent = 'Furnishing · not from the files';
     title.textContent = name; add('Room', spaceName); add('3D model', credit(ids)); if (ids.length) add('Model page', 'polyhaven.com', MODEL_CREDIT(ids)[0].url);
   }
+  const big = $('i-photo');
+  const L = meta.kind === 'frame' && meta.shown && PH.large && PH.large[meta.efta];
+  big.hidden = !L;
+  if (L) { const [sh, c, r] = L, [, , C, R] = PH.large_tile; big.style.backgroundImage = `url(photos/large-${sh}.jpg)`; big.style.backgroundSize = `${C * 100}% ${R * 100}%`; big.style.backgroundPosition = `${C > 1 ? c / (C - 1) * 100 : 0}% ${R > 1 ? r / (R - 1) * 100 : 0}%`; }
   $('info').hidden = false;
 }
 const hideInfo = () => { $('info').hidden = true; };

@@ -43,7 +43,10 @@ def main(pdf_dir: str) -> None:
     out = ROOT / "site" / "photos"
     (out / "full").mkdir(parents=True, exist_ok=True)
     index, rejected, sheets, slot = {}, [], [], 0
-    for pdf in sorted(Path(pdf_dir).glob("EFTA*.pdf")):
+    pdfs = sorted(Path(pdf_dir).glob("EFTA*.pdf"))
+    for i, pdf in enumerate(pdfs):
+        if i % 100 == 0:
+            print(f"{i}/{len(pdfs)} checked, {len(rejected)} rejected", flush=True)
         n = int(pdf.stem[4:])
         img = first_image(pdf)
         tmp = out / "_check.jpg"
