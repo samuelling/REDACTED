@@ -3,3 +3,4 @@ __pycache__/
 *.parquet
 site/_ref/
 site/_kit.html
+site/_trees.html

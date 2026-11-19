@@ -15,6 +15,8 @@ ROOT = Path(__file__).resolve().parent.parent
 SURFACES = [
     "herringbone_parquet", "marble_tiles", "painted_plaster_wall", "quatrefoil_jacquard_fabric",
     "poly_wool_herringbone", "dark_paneled_wood", "concrete_floor_worn_001", "large_floor_tiles_02", "long_white_tiles", "plywood",
+    # the grounds
+    "leafy_grass", "asphalt_02", "rectangular_paving", "bark_brown_02", "granite_tile",
 ]
 MAPS = {"Diffuse": "diff", "nor_gl": "nor", "arm": "arm"}
 
@@ -41,6 +43,14 @@ def main() -> None:
     hdr = get(files["hdri"]["1k"]["hdr"]["url"])
     (env / "ballroom.json").write_text(json.dumps({"format": "hdr", "base64": base64.b64encode(hdr).decode()}))
     print("ballroom HDRI", len(hdr) // 1024, "KB")
+    # The night sky over the grounds: Kloppenheim 07 (pure sky), tonemapped, upper hemisphere and a band below the horizon.
+    from io import BytesIO
+    from PIL import Image
+    files = json.loads(get("https://api.polyhaven.com/files/kloppenheim_07_puresky"))
+    im = Image.open(BytesIO(get(files["tonemapped"]["url"]))).convert("RGB")
+    im = im.resize((4096, 2048), Image.LANCZOS).crop((0, 0, 4096, 1152))
+    im.save(env / "sky.jpg", quality=86)
+    print("sky", (env / "sky.jpg").stat().st_size // 1024, "KB")
 
 
 if __name__ == "__main__":

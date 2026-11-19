@@ -242,6 +242,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
 import * as A from './arch.js';
+import * as G from './grounds.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 
 const $ = (id) => document.getElementById(id);
@@ -310,7 +311,7 @@ renderer.toneMappingExposure = 1.0;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x0a0d14);
-const camera = new THREE.PerspectiveCamera(66, 1, 0.05, 160);
+const camera = new THREE.PerspectiveCamera(66, 1, 0.05, 1800);
 const hemi = new THREE.HemisphereLight(0xfff1dc, 0x3a2c18, 0.55); scene.add(hemi);
 const pmrem = new THREE.PMREMGenerator(renderer);
 try {
@@ -333,7 +334,7 @@ async function surface(id) {
   TEX[id] = { map, normalMap, arm };
 }
 status('Laying the floors…');
-await Promise.all(['herringbone_parquet', 'marble_tiles', 'painted_plaster_wall', 'quatrefoil_jacquard_fabric', 'poly_wool_herringbone', 'dark_paneled_wood', 'concrete_floor_worn_001', 'large_floor_tiles_02', 'long_white_tiles'].map(surface));
+await Promise.all(['herringbone_parquet', 'marble_tiles', 'painted_plaster_wall', 'quatrefoil_jacquard_fabric', 'poly_wool_herringbone', 'dark_paneled_wood', 'concrete_floor_worn_001', 'large_floor_tiles_02', 'long_white_tiles', 'leafy_grass', 'asphalt_02', 'rectangular_paving', 'bark_brown_02', 'granite_tile'].map(surface));
 function surfMat(id, color = 0xffffff, extra = {}) {
   const t = TEX[id] || {};
   return new THREE.MeshStandardMaterial({ color, map: t.map, normalMap: t.normalMap, roughnessMap: t.arm, metalnessMap: t.arm, roughness: 1, metalness: t.arm ? 1 : 0, ...extra });
@@ -1837,41 +1838,169 @@ function buildExterior() {
   }
   for (const [k, m] of [['stone', stone], ['trim', trim], ['sash', sashM], ['lit', litGlass], ['dim', dimGlass], ['roof', roofM], ['iron', iron]]) if (T[k].length) g.add(new THREE.Mesh(A.merge(T[k]), m));
 
-  // ----- grounds: the lawn, the areaway along the house, the drive, the fountain, the fence
-  const lawnTop = new THREE.Mesh(new THREE.BoxGeometry(260, LAWN, 62), C.grass); lawnTop.position.set(40, LAWN / 2 - .001, areaEdge - 31); g.add(lawnTop);
-  const area = new THREE.Mesh(new THREE.PlaneGeometry(260, OUT.z0 - areaEdge + .4).rotateX(-H), mat(0x6f6a60, .9)); area.position.set(40, .01, (OUT.z0 + areaEdge) / 2); g.add(area);
-  const south = new THREE.Mesh(new THREE.PlaneGeometry(160, 70).rotateX(-H), C.grass); south.position.set(10, -.02, 25 + 35); g.add(south);
-  const drive = new THREE.Mesh(new THREE.RingGeometry(43, 48, 96, 1, Math.PI, Math.PI).rotateX(-H), mat(0x8a8478, .9)); drive.position.set(0, LAWN + .012, -78); g.add(drive);
-  const walk = new THREE.Mesh(new THREE.PlaneGeometry(4, 30).rotateX(-H), mat(0x8a8478, .9)); walk.position.set(0, LAWN + .012, -62); g.add(walk);
-  const rail = [];
-  for (const [x0, x1] of [[-80, -deckHalf - .3], [deckHalf + .3, 160]]) {
-    rail.push(box(x1 - x0, .35, .5, (x0 + x1) / 2, LAWN + .17, areaEdge - .25));
-    for (let x = x0 + .2; x < x1; x += .16) rail.push(cyl(.015, .015, 1.1, x, LAWN + .9, areaEdge - .25, 0, 0, 0, 4));
-    rail.push(box(x1 - x0, .05, .05, (x0 + x1) / 2, LAWN + 1.4, areaEdge - .25), box(x1 - x0, .04, .04, (x0 + x1) / 2, LAWN + .45, areaEdge - .25));
-  }
-  const fence = [];
-  for (let x = -80; x <= 160; x += .3) fence.push(cyl(.02, .02, 2.2, x, LAWN + 1.1, -78, 0, 0, 0, 5));
-  fence.push(box(240, .06, .06, 40, LAWN + 2.0, -78), box(240, .06, .06, 40, LAWN + .3, -78));
-  g.add(new THREE.Mesh(merge([...fence, ...rail]), iron));
-  const fz = -60;
-  const fnt = new THREE.Mesh(A.merge([A.lathe(new A.Profile(0, 0).to(4.2, 0).up(.35).ovolo(.2, .2).fillet(-.3, .05).to(3.7, .62).to(0, .62), 48), cyl(.35, .55, 1.6, 0, 1.2, 0, 0, 0, 0, 16), A.lathe(new A.Profile(0, 0).to(1.4, 0).cymaRecta(.2, .25).to(0, .3), 32).translate(0, 1.9, 0)]), trim);
-  fnt.position.set(0, LAWN, fz); g.add(fnt);
-  const water = new THREE.Mesh(new THREE.CircleGeometry(3.7, 48).rotateX(-H), mat(0x1c2a38, .05, .2, { emissive: 0x0c1520, emissiveIntensity: 1 })); water.position.set(0, LAWN + .55, fz); g.add(water);
-  CIRCLES.push({ x: 0, z: fz, r: 4.4, y0: LAWN, y1: LAWN + 1 });
-  // floodlight on the north front
-  const flood = new THREE.SpotLight(0xfff1dc, 3800, 0, .75, .8, 2); flood.position.set(0, LAWN + .5, -50); flood.target.position.set(0, yF(22), OUT.z0); g.add(flood, flood.target);
+  for (const k in T) T[k].length = 0;
+  // ----- grounds, laid out from the HABS site and landscape plans (sheets 2 and 3) at the house's own scale
+  const PX = FT / 2.52, hx = (px) => (1050 - px) * PX, hz = (py) => OUT.z0 - (py - 112) * PX;
+  const FENCE_Z = hz(800), SIDE_X = hx(85), PLAZA = 46, FAR = 900;
+  NORTH.bounds = { FENCE_Z, SIDE_X };
+  const texR = (id, rx, ry) => { const t = TEX[id] || {}; const c = (m) => { if (!m) return null; const n = m.clone(); n.repeat.set(rx, ry); n.needsUpdate = true; return n; };
+    return { map: c(t.map), normalMap: c(t.normalMap), roughnessMap: c(t.arm) }; };
+  const groundMat = (id, rx, ry, color = 0xffffff, extra = {}) => new THREE.MeshStandardMaterial({ ...texR(id, rx, ry), color, roughness: 1, metalness: 0, ...extra });
+  const flat = (x0, x1, z0, z1, y, m) => { const pl = new THREE.Mesh(new THREE.PlaneGeometry(x1 - x0, z1 - z0).rotateX(-H), m); pl.position.set((x0 + x1) / 2, y, (z0 + z1) / 2); g.add(pl); return pl; };
+  // lawns: the North Lawn to the fence, the sides of the house, the lower South Lawn
+  const lawn = groundMat('leafy_grass', 90, 90, 0x7d9a62);
+  flat(-FAR, FAR, FENCE_Z - .2, areaEdge, LAWN, lawn);
+  const sideLawn = groundMat('leafy_grass', 40, 12, 0x7d9a62);
+  flat(46.3, FAR, areaEdge, 26, LAWN, sideLawn); flat(-FAR, -100, areaEdge, 26, LAWN, sideLawn); flat(-100, -48.3, areaEdge, -18, LAWN, sideLawn);
+  flat(-FAR, FAR, 26, FAR, 0, groundMat('leafy_grass', 90, 45, 0x8d9c80));
+  { const bank = new THREE.Mesh(new THREE.PlaneGeometry(2 * FAR, LAWN / Math.sin(.5)), sideLawn); bank.rotation.x = -H + .5; bank.position.set(0, LAWN / 2, 26 + LAWN / Math.tan(.5) / 2); g.add(bank); }
+  // the areaway, only along the house
+  const area = new THREE.Mesh(new THREE.PlaneGeometry(OUT.x1 - OUT.x0, OUT.z0 - areaEdge + .4).rotateX(-H), mat(0x5f5b54, .9)); area.position.set(cx, .01, (OUT.z0 + areaEdge) / 2); g.add(area);
+  { const wall = [box(OUT.x1 - OUT.x0, LAWN, .4, cx, LAWN / 2, areaEdge + .2)]; g.add(new THREE.Mesh(merge(wall), trim)); }
+  // the drive: one arc from the north-east gate under the portico to the north-west gate (HABS sheet 2)
+  const DR = 127, DW = 6.8, dzc = (stepsFront + (OUT.z0 - 41 * FT)) / 2 - DR, half = Math.acos(Math.max(-1, Math.min(1, (FENCE_Z - dzc) / DR)));
+  { const ring = new THREE.RingGeometry(DR - DW / 2, DR + DW / 2, 160, 1, -H - half, 2 * half); const uv = ring.attributes.uv, p = ring.attributes.position;
+    for (let i = 0; i < uv.count; i++) uv.setXY(i, p.getX(i) / 6, p.getY(i) / 6);
+    const asph = new THREE.MeshStandardMaterial({ ...texR('asphalt_02', 1, 1), color: 0xf2ece0, roughness: 1, emissive: 0x2a2620, emissiveIntensity: .6 }); for (const t of [asph.map, asph.normalMap, asph.roughnessMap]) if (t) t.repeat.set(1, 1);
+    asph.polygonOffset = true; asph.polygonOffsetFactor = -2; asph.polygonOffsetUnits = -4; const m = new THREE.Mesh(ring.rotateX(-H), asph); m.position.set(0, LAWN + .06, dzc); g.add(m);
+    // granite kerbs both sides
+    const kerb = []; const kp = new A.Profile(-.18, 0).up(.12).out(.36).up(-.12).back();
+    for (const rr2 of [DR - DW / 2, DR + DW / 2]) { const pts = []; for (let i = 0; i <= 120; i++) { const a = -half + 2 * half * i / 120; pts.push(A.V(Math.sin(a) * rr2, LAWN + .04, dzc + Math.cos(a) * rr2)); } kerb.push(A.sweep(new A.Profile(0, 0).out(.18).up(.12).out(-.18).back(), pts, { sign: 1 }), A.sweep(new A.Profile(0, 0).out(.18).up(.12).out(-.18).back(), pts, { sign: -1 })); }
+    g.add(new THREE.Mesh(merge(kerb), mat(0xbdb6a8, .8))); }
+  // Pennsylvania Avenue's plaza beyond the fence, and Lafayette Square's lawn and paths
+  flat(-FAR, FAR, FENCE_Z - PLAZA, FENCE_Z - .2, LAWN + .05, groundMat('rectangular_paving', 160, 9, 0xb9b3a8, { polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 }));
+  flat(-FAR, FAR, -FAR, FENCE_Z - PLAZA, LAWN, groundMat('leafy_grass', 80, 40, 0x7f8f72));
+  { const walks = []; const P0 = FENCE_Z - PLAZA; for (const [x0, z0, x1, z1] of [[-150, P0, 150, P0 - 260], [150, P0, -150, P0 - 260], [0, P0, 0, P0 - 260], [-200, P0 - 130, 200, P0 - 130]]) { const L = Math.hypot(x1 - x0, z1 - z0); const pg2 = new THREE.PlaneGeometry(5, L).rotateX(-H).rotateY(Math.atan2(x1 - x0, z1 - z0)); pg2.translate((x0 + x1) / 2, LAWN + .06, (z0 + z1) / 2); walks.push(pg2); }
+    g.add(new THREE.Mesh(merge(walks), groundMat('granite_tile', 1, 20, 0xa8a29a, { polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 }))); }
 
-  // ----- walking: the lawn, the deck and its steps; the house walls with the door open
+  // the fountain on the North Lawn: a round basin with a single jet
+  const fz = hz(580), fr = 50 * PX;
+  { const basin = A.lathe(new A.Profile(0, 0).to(fr + .6, 0).up(.5).ovolo(.25, .25).fillet(-.4, .05).to(fr - .1, .8).to(fr - .1, .3).to(0, .3), 72);
+    const pedestal = A.lathe(new A.Profile(0, 0).to(1.2, 0).up(.3).cove(-.6, .9).up(.4).ovolo(.5, .3).to(0, 1.9), 32);
+    const fnt = new THREE.Mesh(A.merge([basin, pedestal]), trim); fnt.position.set(0, LAWN, fz); g.add(fnt);
+    const water = new THREE.Mesh(new THREE.CircleGeometry(fr - .1, 64).rotateX(-H), new THREE.MeshStandardMaterial({ color: 0x0b131c, roughness: .08, metalness: 0, emissive: 0x0a1424, emissiveIntensity: .7, envMapIntensity: .12 })); water.position.set(0, LAWN + .62, fz); g.add(water);
+    const jet = new THREE.Mesh(new THREE.CylinderGeometry(.05, .2, 8, 12, 1, true).translate(0, 4 + 1.9, 0), new THREE.MeshBasicMaterial({ color: 0xb8c4d2, transparent: true, opacity: .1, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide }));
+    jet.position.set(0, LAWN, fz); g.add(jet);
+    // the jet falls back as a soft plume of drops
+    { const n = 900, pp = new Float32Array(n * 3); for (let i = 0; i < n; i++) { const t = rand(), a2 = rand() * 6.28, rr3 = .3 + t * 2.6; pp.set([Math.cos(a2) * rr3, 1.9 + 8 * (1 - t * t) * (1 - t * .3), Math.sin(a2) * rr3], i * 3); }
+      const dg = new THREE.BufferGeometry(); dg.setAttribute('position', new THREE.BufferAttribute(pp, 3)); const drops = new THREE.Points(dg, new THREE.PointsMaterial({ color: 0xc8d4e4, size: .09, transparent: true, opacity: .55, depthWrite: false })); drops.position.copy(jet.position); g.add(drops); }
+    CIRCLES.push({ x: 0, z: fz, r: fr + 1, y0: LAWN, y1: LAWN + 1 }); }
+
+  // trees: the lawn's own, from the plan; rows outside the side fences; Lafayette Square's across the avenue
+  const leafTex = G.leafTexture(7);
+  const TPL = {}; const tpl = (kind, v, lod) => { const k = `${kind}${v}${lod}`; return TPL[k] || (TPL[k] = G.growTree(kind, 101 + v * 37 + kind.length * 13, lod)); };
+  const barkMat = {}, leafMat = {};
+  const BK = (kind) => barkMat[kind] || (barkMat[kind] = new THREE.MeshStandardMaterial({ ...texR('bark_brown_02', 1, 1), color: G.HABIT[kind].bark, roughness: 1 }));
+  const LF = (kind) => leafMat[kind] || (leafMat[kind] = new THREE.MeshStandardMaterial({ map: leafTex, color: G.HABIT[kind].leafColor, alphaTest: .45, side: THREE.DoubleSide, roughness: .85 }));
+  const plant = {};
+  const tree = (x, z, kind, r, code, lod = 1) => {
+    const v = Math.floor(rand() * 3), key = `${kind}|${v}|${lod}`;
+    (plant[key] ||= []).push({ m: mat4(x, LAWN, z, 0, rand() * 6.28, 0, r, r * (.9 + rand() * .2), r), meta: { kind: 'tree', code, name: G.COMMON[code] || 'Tree' } });
+    CIRCLES.push({ x, z, r: Math.max(.35, r * G.HABIT[kind].trunk * .12), y0: LAWN, y1: LAWN + 4 });
+  };
+  for (const [px, py, code, rp] of G.NORTH_LAWN_TREES) tree(hx(px), hz(py), G.KIND_OF[code] || 'small', Math.max(2.2, rp * PX), code);
+  for (const sx of [-1, 1]) for (let z = FENCE_Z - 10; z < 40; z += 24) tree(sx * (SIDE_X + 16), z + rand() * 4, 'oak', 7 + rand() * 3, 'QH', .6);
+  for (let i = 0; i < 70; i++) { const x = (rand() - .5) * 420, z = FENCE_Z - PLAZA - 20 - rand() * 250; if (Math.abs(x) < 8 && z > FENCE_Z - PLAZA - 150 && z < FENCE_Z - PLAZA - 110) continue; tree(x, z, ['elm', 'oak', 'linden', 'magnolia'][Math.floor(rand() * 4)], 8 + rand() * 9, 'park', .55); }
+  for (const [key, list] of Object.entries(plant)) {
+    const [kind, v, lod] = key.split('|'); const T2 = tpl(kind, +v, +lod);
+    const ms = list.map((o) => o.m), metas = list.map((o) => o.meta);
+    instanced(g, T2.bark, BK(kind), ms, metas); if (T2.leaves) instanced(g, T2.leaves, LF(kind), ms, metas);
+  }
+  // Jackson on his horse in the square, as a dark mass on a plinth
+  { const jz = FENCE_Z - PLAZA - 130; const j = [box(9, 3.2, 14, 0, LAWN + 1.6, jz)]; g.add(new THREE.Mesh(merge(j), trim));
+    const horse = A.merge([sph(1, 0, 0, 0, 2.6, 1.6, 1.2).translate(0, LAWN + 6.8, jz), cyl(.35, .3, 3.4, -1.4, LAWN + 4.6, jz + .9, -.2), cyl(.35, .3, 3.4, 1.6, LAWN + 4.9, jz - .7, .4, 0, 0), cyl(.35, .3, 3.4, -1.6, LAWN + 4.9, jz - .7), cyl(.35, .3, 3.4, 1.4, LAWN + 4.6, jz + .9),
+      sph(.8, 0, 0, 0, 1, 1.3, .7).translate(2.8, LAWN + 8.6, jz), sph(.6, 0, 0, 0, .8, 1.6, .8).translate(0, LAWN + 9.2, jz)]);
+    g.add(new THREE.Mesh(horse, mat(0x1a1c1c, .45, .6))); }
+
+  // the fence along Pennsylvania Avenue and both Executive Avenues: stone kerb, piers, iron pickets with gilt spear tips
+  { const ironM = mat(0x0d0e10, .4, .7), giltM = gold;
+    const pick = new THREE.CylinderGeometry(.035, .035, 3.6, 5).translate(0, 1.8 + .6, 0), tip = new THREE.ConeGeometry(.07, .28, 5).translate(0, 4.34, 0);
+    const pm = [], piers = [];
+    const run = (x0, z0, x1, z1, gates = []) => {
+      const L = Math.hypot(x1 - x0, z1 - z0), tx = (x1 - x0) / L, tz = (z1 - z0) / L, ry = Math.atan2(tx, tz);
+      T.trim.push(box(.7, .6, L, 0, .3, 0).applyMatrix4(mat4((x0 + x1) / 2, LAWN, (z0 + z1) / 2, 0, ry, 0)));
+      for (let u = 0; u < L; u += .32) { const x = x0 + tx * u, z = z0 + tz * u; if (gates.some((gx) => Math.abs(x - gx) < 4.5)) continue; pm.push(mat4(x, LAWN, z)); }
+      for (const h2 of [1.0, 3.5]) T.iron.push(box(.06, .08, L, 0, LAWN + h2 + .6, 0).applyMatrix4(mat4((x0 + x1) / 2, 0, (z0 + z1) / 2, 0, ry, 0)));
+      for (let u = 0; u <= L; u += 24) piers.push([x0 + tx * u, z0 + tz * u]);
+      for (const gx of gates) for (const s2 of [-1, 1]) piers.push([gx + s2 * 4.8, z0]);
+      addSeg(x0, z0, x1, z1, LAWN - 1, LAWN + 5);
+    };
+    run(-SIDE_X, FENCE_Z, SIDE_X, FENCE_Z, [-DR, DR]);
+    run(-SIDE_X, FENCE_Z, -SIDE_X, 40); run(SIDE_X, FENCE_Z, SIDE_X, 40);
+    instanced(g, pick, ironM, pm); instanced(g, tip, giltM, pm);
+    const pier = A.merge([box(1.6, 4.6, 1.6, 0, 2.3, 0), A.cap(A.CORNICE.scaled(.5), 1.9, .15, 4.6).translate(0, 0, -.95), box(1.9, .3, 1.9, 0, 5.15, 0), sph(.45, 0, 5.75, 0, 1, 1, 1)]);
+    instanced(g, pier, trim, piers.map(([x, z]) => mat4(x, LAWN, z)));
+    for (const [x, z] of piers) CIRCLES.push({ x, z, r: 1.1, y0: LAWN, y1: LAWN + 4 });
+    // the gates, closed
+    for (const gx of [-DR, DR]) { const gp = []; for (let u = -4.2; u <= 4.2; u += .3) gp.push(mat4(gx + u, LAWN, FENCE_Z)); instanced(g, pick, ironM, gp); instanced(g, tip, giltM, gp); }
+  }
+  // Washington globe lamps along the drive, the avenue and the square
+  { const L2 = G.globeLamp(5.4); const lm = [];
+    for (let a = -half + .03; a <= half - .03; a += .085) { const x = Math.sin(a) * (DR + DW / 2 + 1.6), z = dzc + Math.cos(a) * (DR + DW / 2 + 1.6); if (z > OUT.z0 - 30 && Math.abs(x) < 40) continue; lm.push([x, z]); }
+    for (let x = -SIDE_X + 6; x < SIDE_X; x += 22) lm.push([x, FENCE_Z - 3], [x + 11, FENCE_Z - PLAZA + 3]);
+    for (let i = 0; i < 26; i++) { const t = rand(); const k = Math.floor(rand() * 3); const P0 = FENCE_Z - PLAZA; lm.push(k === 0 ? [-150 + 300 * t + 3.5, P0 - 260 * t] : k === 1 ? [150 - 300 * t + 3.5, P0 - 260 * t] : [3.5, P0 - 260 * t]); }
+    const ms = lm.map(([x, z]) => mat4(x, LAWN, z));
+    instanced(g, L2.iron, mat(0x111214, .45, .6), ms); instanced(g, L2.globe, glow(0xfff0d0, 2.4), ms);
+    const pts = new Float32Array(lm.length * 3); lm.forEach(([x, z], i) => pts.set([x, LAWN + 5.45, z], i * 3));
+    const pg3 = new THREE.BufferGeometry(); pg3.setAttribute('position', new THREE.BufferAttribute(pts, 3));
+    g.add(new THREE.Points(pg3, new THREE.PointsMaterial({ map: G.glowTexture(), size: 7, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, color: 0xffd9a8, opacity: .9 })));
+    for (const [x, z] of lm) CIRCLES.push({ x, z, r: .4, y0: LAWN, y1: LAWN + 4 }); }
+
+  // the neighbours: the Treasury to the east (its colonnade facing the house), the Eisenhower Executive Office Building to the west,
+  // and the row of buildings round Lafayette Square; massing, cornices and lit windows, seen at night across the trees
+  { const fac = new THREE.MeshStandardMaterial({ color: 0x9a978f, roughness: .9, emissive: 0x15140f, emissiveIntensity: 1 });
+    const building = (x0, x1, z0, z1, h, cols, rows, seed, mansard = false, wall = 0x0a0a0a, base = LAWN) => {
+      const w = x1 - x0, d = z1 - z0, bx2 = (x0 + x1) / 2, bz = (z0 + z1) / 2;
+      const winM = new THREE.MeshStandardMaterial({ color: wall, emissive: 0xffffff, emissiveMap: G.windowTexture(cols, rows, seed, .38), emissiveIntensity: 1.1, roughness: .9 });
+      const sides = [];
+      for (const [len, x, z, ry] of [[w, bx2, z0, Math.PI], [w, bx2, z1, 0], [d, x0, bz, -H], [d, x1, bz, H]]) sides.push(new THREE.PlaneGeometry(len, h).translate(0, LAWN + h / 2, .02).applyMatrix4(mat4(x, 0, z, 0, ry, 0)));
+      g.add(new THREE.Mesh(merge(sides), [winM][0]));
+      g.add(new THREE.Mesh(box(w, .4, d, bx2, LAWN + h, bz), fac));
+      g.add(new THREE.Mesh(A.sweep(A.CORNICE.scaled(1.6), [A.V(x0, LAWN + h - 1.4, z0), A.V(x1, LAWN + h - 1.4, z0), A.V(x1, LAWN + h - 1.4, z1), A.V(x0, LAWN + h - 1.4, z1)], { closed: true, away: A.V(bx2, 0, bz) }), fac));
+      if (mansard) { const r2 = new THREE.CylinderGeometry(Math.SQRT1_2 * .82, Math.SQRT1_2, 1, 4, 1).rotateY(Math.PI / 4).scale(w, 9, d).translate(bx2, LAWN + h + 4.5, bz); g.add(new THREE.Mesh(r2, mat(0x2c2f33, .6, .3))); }
+    };
+    building(SIDE_X + 40, SIDE_X + 120, FENCE_Z - 40, 160, 38, 40, 9, 3);              // Treasury
+    { const cm = []; for (let z = FENCE_Z - 30; z < 150; z += 7.5) cm.push(mat4(SIDE_X + 37, LAWN + 5, z)); const C3 = A.column('ionic', 2.2, 26); instanced(g, C3.shaft, trim, cm); instanced(g, C3.gilt, trim, cm); g.add(new THREE.Mesh(box(4, 5, 190, SIDE_X + 38, LAWN + 2.5, (FENCE_Z - 30 + 150) / 2), trim)); }
+    building(-SIDE_X - 150, -SIDE_X - 40, FENCE_Z - 30, 170, 34, 46, 8, 5, true);      // Eisenhower Executive Office Building
+    building(-100, -48.4, -18, 30, LAWN + 9, 14, 2, 17, false, 0xd8d3c8);           // the West Wing, at the house's west end
+    const N0 = FENCE_Z - PLAZA - 300;
+    building(-260, -120, N0 - 40, N0, 30, 30, 8, 7); building(-100, -30, N0 - 36, N0, 46, 16, 12, 9); building(30, 120, N0 - 40, N0, 40, 22, 11, 11); building(140, 280, N0 - 40, N0, 32, 32, 9, 13);
+    // St John's Church, yellow, with its steeple
+    g.add(new THREE.Mesh(A.merge([box(22, 14, 30, 72, LAWN + 7, N0 + 30), box(7, 20, 7, 72, LAWN + 24, N0 + 14), new THREE.ConeGeometry(4, 10, 8).translate(72, LAWN + 39, N0 + 14)]), mat(0xc9a95c, .8, 0, { emissive: 0x2a1f0a, emissiveIntensity: .8 })));
+  }
+  // floodlights on the north front and the fountain
+  const flood = new THREE.SpotLight(0xfff1dc, 5200, 0, .62, .8, 2); flood.position.set(0, LAWN + .5, -70); flood.target.position.set(0, yF(20), OUT.z0); g.add(flood, flood.target);
+
+  // the sky: a real night sky (Poly Haven's Kloppenheim 07, CC0), moonlit cloud with the city's glow on the horizon
+  { const tex = texLoader.load('env/sky.jpg'); tex.colorSpace = THREE.SRGBColorSpace; tex.wrapS = THREE.RepeatWrapping;
+    const sky = new THREE.Mesh(new THREE.SphereGeometry(1500, 64, 32), new THREE.ShaderMaterial({ side: THREE.BackSide, depthWrite: false, fog: false,
+      uniforms: { map: { value: tex }, exposure: { value: .5 }, haze: { value: new THREE.Color(0x1c2230) } },
+      vertexShader: 'varying vec3 vD; void main(){ vD = normalize(position); vec4 p = projectionMatrix * modelViewMatrix * vec4(position, 1.0); gl_Position = p.xyww; }',
+      fragmentShader: `uniform sampler2D map; uniform float exposure; uniform vec3 haze; varying vec3 vD;
+        void main(){ vec3 d = normalize(vD); float lon = atan(d.x, -d.z); float lat = asin(clamp(d.y, -1.0, 1.0));
+          float v = 1.0 - (1.5707963 - lat) / 1.7671459; vec3 c = texture2D(map, vec2(lon / 6.2831853 + .5 + .18, clamp(v, .002, .998))).rgb;
+          c = pow(c, vec3(1.25)) * exposure * vec3(.92, .95, 1.05); float h = smoothstep(.12, -.02, d.y); gl_FragColor = vec4(mix(c, haze, h), 1.0); }` }));
+    sky.renderOrder = -10; sky.frustumCulled = false; sky.onBeforeRender = (r2, s2, cam) => sky.position.copy(cam.position); g.add(sky); }
+
+  // ----- walking: the lawn inside the fences, the deck and its steps; the house walls with the door open
   const stepY = (z) => LAWN + (ST - LAWN) * Math.min(1, Math.max(0, (z - stepsFront) / (deckFront - stepsFront)));
-  REGIONS.push({ space: NORTH, inside: (x, z) => x >= -80 && x <= 160 && z >= -77.5 && z <= -16 && (Math.abs(x) < deckHalf || z < areaEdge - .5), y: (x, z) => Math.abs(x) < deckHalf && z > stepsFront ? stepY(z) : LAWN });
+  const onLawn = (x, z) => {
+    if (x < -SIDE_X + .6 || x > SIDE_X - .6 || z < FENCE_Z + .6 || z > 24) return false;
+    if (Math.abs(x) < deckHalf) return z <= -16;                                   // the drive, the steps, the deck, the doorway
+    if (x > OUT.x0 - .1 && x < OUT.x1 + .1) return z < areaEdge - .5;              // the areaway along the house
+    if (x >= OUT.x1 && x < WING.x1 + .3) return z < WING.z0 - .5;                   // the ballroom wing
+    if (x <= OUT.x0 && x > -100.3) return z < -18.5;                                 // the West Wing
+    return true;
+  };
+  REGIONS.push({ space: NORTH, inside: onLawn, y: (x, z) => Math.abs(x) < deckHalf && z > stepsFront ? stepY(z) : LAWN });
   addSeg(OUT.x0, OUT.z0, -dw / 2, OUT.z0, 0, OUT.top); addSeg(dw / 2, OUT.z0, OUT.x1, OUT.z0, 0, OUT.top);
   addSeg(-dw / 2, OUT.z0, -dw / 2, -16, ST, ST + 4); addSeg(dw / 2, OUT.z0, dw / 2, -16, ST, ST + 4);
   addSeg(-deckHalf, areaEdge - .5, -deckHalf, OUT.z0, ST - 3, ST + 3); addSeg(deckHalf, areaEdge - .5, deckHalf, OUT.z0, ST - 3, ST + 3);
-  addSeg(-80, -77.5, 160, -77.5, LAWN - 1, LAWN + 3); addSeg(-80, -77.5, -80, -16, LAWN - 1, LAWN + 3); addSeg(160, -77.5, 160, -16, LAWN - 1, LAWN + 3);
+  for (const m of ['stone', 'trim', 'iron']) if (T[m].length) { g.add(new THREE.Mesh(A.merge(T[m]), { stone, trim, iron }[m])); T[m].length = 0; }
 }
 buildExterior();
-scene.background = new THREE.Color(0x0b1220);
-scene.fog = new THREE.Fog(0x0b1220, 70, 170);
+scene.background = new THREE.Color(0x10141d);
+scene.fog = new THREE.FogExp2(0x1c2230, .0021);
 { const moon = new THREE.DirectionalLight(0xb8c8ff, .9); moon.position.set(-40, 60, -90); NORTH.group.add(moon); NORTH.group.add(new THREE.HemisphereLight(0x5a6c99, 0x1b2416, .9)); }
 
 for (let i = 0; i < SPACES.length; i++) { buildSpace(SPACES[i]); status(`Gilding the rooms… ${i + 1}/${SPACES.length}`); await new Promise((r) => requestAnimationFrame(r)); }
@@ -1939,6 +2068,11 @@ function showInfo(meta, spaceName) {
     add('Logged in', meta.file || '—'); const src = dojDoc(meta.file, meta.ds); if (src) add('DOJ file', 'Open the PDF', src);
     add('Source', 'FBI evidence recovery log'); add('Room', spaceName);
     note.hidden = false; note.textContent = opaque(meta.label) ? 'Logged by investigators. Sealed in a black bag here: not reproduced or described.' : 'Logged by investigators. Shown sealed in a bag; the item itself is not reconstructed.';
+  } else if (meta.kind === 'tree') {
+    $('i-kind').textContent = 'The grounds';
+    title.textContent = meta.code === 'park' ? 'Tree, Lafayette Square' : meta.name;
+    if (meta.code !== 'park') { add('Planted where', 'The North Lawn, as on the 1992 survey'); add('Source', 'HABS DC-37, sheet 3, landscape plan', 'https://www.loc.gov/item/dc0402/'); }
+    add('Grown', 'In code, at the house\'s scale'); note.hidden = true;
   } else if (meta.kind === 'figure') {
     $('i-kind').textContent = 'Redaction';
     title.textContent = 'Redacted'; title.classList.add('black');
@@ -2023,7 +2157,7 @@ function step(dt) {
   if (keys.has('KeyD') || keys.has('ArrowRight')) s += 1; if (keys.has('KeyA') || keys.has('ArrowLeft')) s -= 1;
   f += stick.y; s += stick.x;
   const len = Math.hypot(f, s); if (len > 1) { f /= len; s /= len; }
-  const speed = (keys.has('ShiftLeft') || keys.has('ShiftRight') || stick.run) ? 3.4 : 1.7;
+  const speed = ((keys.has('ShiftLeft') || keys.has('ShiftRight') || stick.run) ? 3.4 : 1.7) * (current && current.exterior ? 2.4 : 1);
   const sin = Math.sin(P.yaw), cos = Math.cos(P.yaw);
   let nx = P.x + (-sin * f + cos * s) * speed * dt, nz = P.z + (-cos * f - sin * s) * speed * dt;
   [nx, nz] = collide(nx, nz, P.y);
@@ -2037,6 +2171,7 @@ function step(dt) {
 function enterSpace(s) {
   if (s === current) return;
   current = s; showPlacard(s); lightSpace(s); levelVisibility(s);
+  const near = s.exterior ? .3 : .05; if (camera.near !== near) { camera.near = near; camera.updateProjectionMatrix(); }
   if (mode === 'walk') { const i = TOUR.indexOf(s.id); if (i >= 0) tourIdx = i; }
 }
 // Show only the floor you are on (the staircase and its neighbours stay visible).
@@ -2052,7 +2187,7 @@ function levelVisibility(s) {
 }
 // Figure mode: drop the ground. Only the redacted people and the seized evidence remain.
 let figureMode = false;
-const NIGHT = new THREE.Color(0x0b1220), VOID = new THREE.Color(0xefece4), FOG = scene.fog;
+const NIGHT = new THREE.Color(0x10141d), VOID = new THREE.Color(0xefece4), FOG = scene.fog;
 function setFigure(on) {
   figureMode = on; hideInfo();
   for (const sp of SPACES) sp.group.traverse((o) => { if (o.isMesh) o.visible = on ? !!o.userData.keep : true; });
@@ -2269,7 +2404,7 @@ function frame(now) {
 }
 
 // Start on the North Lawn by the fence, facing the North Portico (yaw π faces south, +z).
-P.x = -11; P.z = -74; P.y = LAWN; P.yaw = Math.PI + .2; P.pitch = .2;
+P.x = -9; P.z = -152; P.y = LAWN; P.yaw = Math.PI + .06; P.pitch = .1;
 enterSpace(NORTH);
 SPACES.forEach((s) => (s.group.visible = true)); renderer.compile(scene, camera); levelVisibility(NORTH);
 requestAnimationFrame(frame);

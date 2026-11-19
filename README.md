@@ -42,6 +42,12 @@ take the corridor photographs.
   nudity*, and are never described. Only screened photographs are ever fetched,
   and `scripts/build_photos.py` runs NudeNet and OpenCV's people detector over
   them before use; anything flagged stays black.
+- **The grounds**: the North Lawn is laid out from the HABS site and landscape plans
+  (sheets 2 and 3): the drive, the fountain, the fence and gates, and every major tree
+  in its surveyed place and spread, grown in code by species habit (`site/grounds.js`) as
+  they stand in November. Lafayette Square, the Treasury and the Eisenhower Executive
+  Office Building stand round it as lit masses under a real night sky (Poly Haven,
+  Kloppenheim 07, CC0).
 - **Black figures**: one per 1,000 redaction fragments in the release (191). They walk
   slowly about their rooms, stop and stand, or sit at the desks. Each is a woman, a man or,
   where the files do not say, a body halfway between the two, in proportion to what the
